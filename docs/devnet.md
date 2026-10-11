@@ -4,14 +4,16 @@
 
 Run every command inside the pinned shell: `nix-shell --run 'bash scripts/devnet.sh <command>'`.
 
-## Decision before the first deploy: the program identity
+## Program identity
 
-The program's address is the public key of a program keypair, and `declare_id!` in `programs/forge/src/lib.rs` must equal it, or every instruction fails. The repository declares `4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP`. Its secret key is not in the repository and was not found on the build machine. The `target/deploy/forge-keypair.json` produced by `scripts/build.sh` belongs to a different address because builds use `--ignore-keys`.
+The program's address is the public key of a program keypair, and `declare_id!` in `programs/forge/src/lib.rs` must equal it, or every instruction fails. The prototype first declared `4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP`, whose secret key was never in the repository. On 11 October 2026 the product owner chose a new id for Devnet:
 
-Pick one:
+| Role | Public key | Secret key |
+| --- | --- | --- |
+| Program | `CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx` | `.local/devnet/program.json` on the deploying machine |
+| Deployer and upgrade authority | `FQM2nPX3s8TchNDfhzLD1Gj61AWA8CUKuaVDE5BdXcQq` | `.local/devnet/deployer.json` on the deploying machine |
 
-- **Keep `4niyjc…`:** whoever holds that keypair runs the deploy with `FORGE_PROGRAM_KEYPAIR=/path/to/it`.
-- **New Devnet id:** `program-id` creates `.local/devnet/program.json`, rewrites `lib.rs` and `Anchor.toml` to its address and rebuilds (offline once `.tools/` is populated). Commit the two changed files; keep the keypair out of git and back it up, because it controls nothing after deployment but is the only way to deploy to that address again from scratch.
+Both secrets are ignored by git; back them up. The program key is needed again only to redeploy that address from scratch; the deployer key controls every upgrade. `program-id` mints a new id the same way for any other cluster or a fresh start.
 
 ## Upgrade authority
 
@@ -22,7 +24,7 @@ Pick one:
 ```sh
 nix-shell --run 'bash scripts/build.sh'              # program + IDL
 nix-shell --run 'bash scripts/devnet.sh keys'        # deployer keypair; prints its address
-nix-shell --run 'bash scripts/devnet.sh program-id'  # only if not keeping 4niyjc…
+nix-shell --run 'bash scripts/devnet.sh program-id'  # only to mint another program id
 nix-shell --run 'bash scripts/devnet.sh airdrop'     # repeat until check passes, or use https://faucet.solana.com
 nix-shell --run 'bash scripts/devnet.sh check'       # keypair ↔ declare_id ↔ IDL, balance ≥ need
 nix-shell --run 'bash scripts/devnet.sh deploy'      # first deploy or upgrade

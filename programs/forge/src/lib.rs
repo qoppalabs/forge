@@ -20,7 +20,7 @@ pub use state::{Loan, LoanState, Vault, Withdrawal, WithdrawalState};
 pub use constants::TEST_TOKEN_DECIMALS;
 pub use error::ForgeError;
 
-declare_id!("4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP");
+declare_id!("CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx");
 
 #[program]
 pub mod forge {
