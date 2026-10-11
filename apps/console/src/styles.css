@@ -293,6 +293,7 @@ pre {
   display: flex;
   align-items: center;
   gap: var(--forge-space-3);
+  white-space: nowrap;
 }
 
 .metrics,
