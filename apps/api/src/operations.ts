@@ -28,6 +28,15 @@ import { conflict, HttpError, notFound } from "./http";
 const base58Bytes = getBase58Encoder();
 const base58String = getBase58Decoder();
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/** Ids come from the URL; anything but a UUID names no operation (and would be a database error). */
+function assertOperationId(id: string) {
+  if (!UUID.test(id)) {
+    throw notFound("Operation");
+  }
+}
+
 /** Vaults an institution may have awaiting creation at once; each one is watched by the worker. */
 export const MAX_PENDING_VAULTS = 20;
 
@@ -372,6 +381,7 @@ export class Operations {
     operationId: string,
     wireBase64: string
   ): Promise<OperationView> {
+    assertOperationId(operationId);
     let submitted: Transaction;
     try {
       submitted = decodeWireTransaction(wireBase64);
@@ -464,6 +474,7 @@ export class Operations {
     institution: Institution,
     operationId: string
   ): Promise<OperationView> {
+    assertOperationId(operationId);
     const [operation] = (await this.db`
       SELECT * FROM operations WHERE id = ${operationId} AND institution_id = ${institution.id}`) as OperationRow[];
     if (!operation) {
@@ -509,6 +520,7 @@ export class Operations {
     institution: Institution,
     operationId: string
   ): Promise<OperationView> {
+    assertOperationId(operationId);
     const [row] = await this.db`
       SELECT id FROM operations WHERE id = ${operationId} AND institution_id = ${institution.id}`;
     if (!row) {

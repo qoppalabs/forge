@@ -27,6 +27,7 @@ import { assertPendingVaultCapacity, requestHash } from "./operations";
 import type { Operations, OperationView } from "./operations";
 
 const U64_MAX = 2n ** 64n - 1n;
+const I64_MAX = 2n ** 63n - 1n;
 
 /** Numeric columns come back as strings; requests may carry leading zeros. */
 const sameNumber = (a: unknown, b: unknown) =>
@@ -111,11 +112,14 @@ export const schemas = {
       termSeconds: z
         .string()
         .refine(
-          (v) => /^\d+$/u.test(v) && BigInt(v) > 0n,
-          "must be a positive integer string"
+          (v) => /^\d+$/u.test(v) && BigInt(v) > 0n && BigInt(v) <= I64_MAX,
+          "must be a positive i64 integer string"
         ),
-      // oxlint-disable-next-line require-unicode-regexp -- zod echoes this pattern (flags included) in validation error details
-      offerExpiry: z.string().regex(/^\d+$/, "Unix timestamp in seconds"),
+      offerExpiry: z
+        .string()
+        // oxlint-disable-next-line require-unicode-regexp -- zod echoes this pattern (flags included) in validation error details
+        .regex(/^\d+$/, "Unix timestamp in seconds")
+        .refine((v) => BigInt(v) <= I64_MAX, "must fit in i64"),
     })
     .strict(),
   proposeWithdrawal: z

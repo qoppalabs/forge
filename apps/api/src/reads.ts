@@ -137,7 +137,7 @@ export class Reads {
 
   async status() {
     const [worker] = await this.db`
-      SELECT worker_id, seen_at, details FROM worker_heartbeats ORDER BY seen_at DESC LIMIT 1`;
+      SELECT worker_id, seen_at FROM worker_heartbeats ORDER BY seen_at DESC LIMIT 1`;
     let finalizedHeight: string | null = null;
     try {
       const height = await this.chain.getBlockHeight("finalized");

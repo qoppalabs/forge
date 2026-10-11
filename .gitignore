@@ -29,3 +29,6 @@ coverage/
 # Generated leftovers of apps/native and apps/web, removed in 7e3715b
 /apps/native/
 /apps/web/
+*.pem
+*.key
+id.json

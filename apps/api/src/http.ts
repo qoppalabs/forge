@@ -88,5 +88,13 @@ export function idempotencyKey(request: Request): string {
       "Idempotency-Key header (≤128 chars) is required"
     );
   }
+  // The worker records chain-origin operations under `chain:` keys in the same namespace.
+  if (key.startsWith("chain:")) {
+    throw new HttpError(
+      400,
+      "idempotency_key_reserved",
+      "Idempotency-Key must not start with chain:"
+    );
+  }
   return key;
 }

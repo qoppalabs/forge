@@ -14,9 +14,10 @@ import type { FundVaultIntent, ProposeLoanIntent } from "@forge/sdk";
 import { generateKeyPair, getAddressFromPublicKey } from "@solana/kit";
 
 import type { ChainInstruction, TokenBalanceChange } from "../src/chain";
+import { connect, migrate } from "../src/db";
 import { MAX_PENDING_VAULTS } from "../src/operations";
 import { randomAddress } from "./fake-chain";
-import { setup } from "./harness";
+import { setup, TEST_DATABASE_URL } from "./harness";
 import type { Harness } from "./harness";
 
 let h: Harness;
@@ -526,5 +527,51 @@ describe("shared resources", () => {
       JSON.stringify({ reference: "€".repeat(30_000) })
     );
     expect(multibyte.status).toBe(413);
+  });
+});
+
+describe("API hardening", () => {
+  test("out-of-range terms, malformed operation ids and reserved keys are client errors", async () => {
+    const { intent } = await h.createVault();
+    const tooLong = await h.api("POST", `/v1/vaults/${intent.vault}/loans`, {
+      approver: h.roles.approverA.address,
+      borrower: h.roles.borrower.address,
+      destination: h.accounts.borrowerTokens,
+      offerExpiry: String(Math.floor(Date.now() / 1000) + 3600),
+      principal: "100",
+      reference: "LN-1",
+      termRateBps: 0,
+      termSeconds: (2n ** 63n).toString(),
+    });
+    expect(tooLong.status).toBe(400);
+    const notUuid = await h.api("GET", "/v1/operations/not-a-uuid");
+    expect(notUuid.status).toBe(404);
+    const reserved = await h.api(
+      "POST",
+      `/v1/vaults/${intent.vault}/fund`,
+      { amount: "1", source: h.accounts.source },
+      { idempotencyKey: "chain:test:sig:0:-1" }
+    );
+    expect(reserved.status).toBe(400);
+  });
+
+  test("status shows worker liveness without its internal errors", async () => {
+    await h.createVault();
+    const { body } = await h.api("GET", "/v1/status");
+    expect(Object.keys(body.worker).toSorted()).toEqual([
+      "seen_at",
+      "worker_id",
+    ]);
+  });
+
+  test("concurrent migrations on an empty schema both succeed", async () => {
+    await h.db.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
+    const second = connect(TEST_DATABASE_URL);
+    const results = await Promise.all([migrate(h.db), migrate(second)]);
+    await second.close();
+    expect(results.flat().toSorted()).toEqual([
+      "001_init.sql",
+      "002_exceptions_vault_key.sql",
+    ]);
   });
 });

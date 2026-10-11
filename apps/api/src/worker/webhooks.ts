@@ -44,14 +44,15 @@ export class Webhooks {
   }
 
   async deliver(limit = 20): Promise<number> {
-    // Claim by pushing next_attempt_at forward; no row lock is held across HTTP calls.
+    // Claim by pushing next_attempt_at forward; no row lock is held across HTTP calls. The window
+    // outlasts a full batch (limit × 5 s timeout) so another worker does not resend it mid-batch.
     const due = (await this.db`
       WITH due AS (
         SELECT o.id FROM webhook_outbox o JOIN institutions i ON i.id = o.institution_id
         WHERE o.delivered_at IS NULL AND o.next_attempt_at <= now() AND i.webhook_url IS NOT NULL
         ORDER BY o.id LIMIT ${limit} FOR UPDATE OF o SKIP LOCKED
       )
-      UPDATE webhook_outbox o SET next_attempt_at = now() + interval '30 seconds'
+      UPDATE webhook_outbox o SET next_attempt_at = now() + interval '2 minutes'
       FROM due, institutions i WHERE o.id = due.id AND i.id = o.institution_id
       RETURNING o.id, o.event_id, o.type, o.payload, o.attempts, o.created_at, i.webhook_url, i.webhook_secret`) as DueEvent[];
     for (const event of due) {
