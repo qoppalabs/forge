@@ -26,6 +26,7 @@ Architecture decisions: [ADR 0001 TypeScript backend](docs/adr/0001-typescript-b
 | `apps/console` | `@forge/console` | Operator console: plan review, local demo signing, settlement, statement. |
 | `apps/localnet` | `@forge/localnet` | Fixture seeding and end-to-end validation against a loopback validator. |
 | `apps/site` | `@forge/site` | Landing page and Fumadocs documentation; static export to GitHub Pages. |
+| `examples/bank-core` | — | Independent bank-side consumer: verifies signed webhooks, applies each event id once, reconciles statements over REST. No SDK. |
 | `packages/config` | `@forge/config` | Shared TypeScript configuration. |
 
 ```sh
@@ -51,6 +52,16 @@ bun run dev:api                                    # API :3002 + worker
 bun run dev:console                                # console http://127.0.0.1:3003
 bun run e2e                                        # scripted validation (own database and API port)
 nix-shell --run 'bash scripts/localnet.sh down'    # or `reset` to delete all local state
+```
+
+### Bank-core example
+
+`examples/bank-core/receiver.ts` is what a bank's core system needs to consume FORGE without the SDK. It verifies `Forge-Signature` (HMAC-SHA256 over `<t>.<body>`, ±300 s), acknowledges a repeated event id without applying it twice, and fetches the vault statement after each event. Applied ids go to `.local/bank-core/applied-events.jsonl`, so they survive restarts.
+
+```sh
+bun apps/api/src/cli.ts create-institution --name "Core Bank" --webhook-url http://127.0.0.1:4010/hook
+# prints apiKey and webhookSecret once
+FORGE_API_KEY=fk_… FORGE_WEBHOOK_SECRET=whsec_… bun examples/bank-core/receiver.ts
 ```
 
 For a long-running demo, `nix-shell --run 'bash scripts/demo.sh up'` starts all of the above as `systemd --user` services on a fresh chain with seeded wallets (`status`, `down`; logs via `journalctl --user -u forge-demo-api`). Everything stays on loopback; use it from another machine through an SSH tunnel:
