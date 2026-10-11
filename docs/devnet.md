@@ -15,6 +15,17 @@ The program's address is the public key of a program keypair, and `declare_id!` 
 
 Both secrets are ignored by git; back them up. The program key is needed again only to redeploy that address from scratch; the deployer key controls every upgrade. `program-id` mints a new id the same way for any other cluster or a fresh start.
 
+## Current deployment
+
+| Fact | Value |
+| --- | --- |
+| Program | `CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx` |
+| Upgrade authority | `FQM2nPX3s8TchNDfhzLD1Gj61AWA8CUKuaVDE5BdXcQq` |
+| Deployed | 11 October 2026, slot 510016536, signature `3zUKNpapz83zForg7EhFoGQzGW2xvYvsy6r5SsPmXCnTLpgfq5segcQL7Vw2VWokAue8ZoZeToh6ipUKwUqhVVBp` |
+| Program data | 321,256 bytes, SHA-256 `058cfa0c071a33095740fe74f8c6b1943a1d5ab68115e1984d602de9c2458224` |
+
+Checked after the deploy: `solana program dump` returns bytes with the same SHA-256 as the local `target/deploy/forge.so`, and a simulated `create_vault` with a made-up mint executes the program and fails on `AccountNotInitialized` (3012) for that mint, so the declared id matches the deployed address.
+
 ## Upgrade authority
 
 `deploy` makes the deployer keypair (`.local/devnet/deployer.json` by default, or `FORGE_DEPLOYER_KEYPAIR`) the program's upgrade authority. That key can replace the program at any time. The deployed program is therefore not immutable, and nothing in this prototype should say otherwise. `deploy` records the authority, deploy slot, data length and the SHA-256 of the deployed `forge.so` in `.local/devnet/deployment.json`; publish those values with the demo.
