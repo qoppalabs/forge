@@ -289,6 +289,12 @@ pre {
   margin-bottom: var(--forge-space-4);
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--forge-space-3);
+}
+
 .metrics,
 .balances {
   display: grid;

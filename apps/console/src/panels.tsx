@@ -10,6 +10,7 @@ import {
   LOAN_VIEW,
   STATUS,
   baseUnits,
+  statementCsv,
   unixDate,
   when,
 } from "./format";
@@ -709,9 +710,37 @@ export function StatementView({ data }: { data: Data }) {
       id="statement"
       title="Statement"
       aside={
-        <Badge tone={statement.balanced ? "success" : "error"}>
-          {statement.balanced ? "Balanced" : "Unbalanced"}
-        </Badge>
+        <div className="section-actions">
+          <Badge tone={statement.balanced ? "success" : "error"}>
+            {statement.balanced ? "Balanced" : "Unbalanced"}
+          </Badge>
+          {data.status && data.vault && statement.postings.length > 0 && (
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                const { status, vault } = data;
+                if (!status || !vault) {
+                  return;
+                }
+                const csv = statementCsv(statement, {
+                  network: status.network,
+                  programId: status.programId,
+                  vault: vault.address,
+                });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(
+                  new Blob([csv], { type: "text/csv" })
+                );
+                link.download = `statement-${vault.address}.csv`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+              }}
+            >
+              Export CSV
+            </button>
+          )}
+        </div>
       }
     >
       <div className="balances">

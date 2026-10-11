@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --hot server.ts",
     "build": "bun build ./index.html --outdir dist --minify",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5",

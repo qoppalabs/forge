@@ -1,5 +1,7 @@
 import { formatTokenAmount, parseTokenAmount } from "@forge/sdk";
 
+import type { Statement } from "./api";
+
 export const ASSET = "FORGE_TEST_USD";
 
 export function tokens(base: string | bigint | null | undefined): string {
@@ -92,3 +94,41 @@ export const LOAN_VIEW: Record<
   proposed: { label: "Proposed", tone: "neutral" },
   repaid: { label: "Repaid", tone: "success" },
 };
+
+/** One CSV cell; a leading formula character is neutralised for spreadsheet imports. */
+function csvCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/u.test(value) ? `'${value}` : value;
+  return `"${safe.replaceAll('"', '""')}"`;
+}
+
+/** Finalized postings with the chain, program, signature and business reference of each. */
+export function statementCsv(
+  statement: Statement,
+  context: { network: string; programId: string; vault: string }
+): string {
+  const header = [
+    "network",
+    "program_id",
+    "vault",
+    "slot",
+    "entry",
+    "account",
+    "debit_base_units",
+    "credit_base_units",
+    "business_ref",
+    "signature",
+  ];
+  const rows = statement.postings.map((p) => [
+    context.network,
+    context.programId,
+    context.vault,
+    p.slot,
+    p.entry,
+    p.account,
+    p.debit,
+    p.credit,
+    p.business_ref ?? "",
+    p.signature,
+  ]);
+  return `${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
+}
