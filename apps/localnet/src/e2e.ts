@@ -547,6 +547,44 @@ async function main() {
   );
   record("repeated repayment rejected (6010)");
 
+  // Spec fixture: a short-term loan still unpaid after its due time is overdue (a computed
+  // view; nothing executes on chain). Repaid afterwards so later cash checks are unaffected.
+  const shortOp = await run(
+    `/v1/vaults/${vault}/loans`,
+    {
+      approver: w.approverA.address,
+      borrower: w.borrower.address,
+      destination: acc.borrowerTokens,
+      offerExpiry,
+      principal: T(1).toString(),
+      reference: "LN-2026-SHORT",
+      termRateBps: 0,
+      termSeconds: "2",
+    },
+    [w.approverA]
+  );
+  const shortLoan = shortOp.intent.loan as Address;
+  for (const approver of [w.approverA, w.approverB]) {
+    // oxlint-disable-next-line no-await-in-loop -- approvals land one after the other
+    await run(
+      `/v1/loans/${shortLoan}/approve`,
+      { approver: approver.address },
+      [approver]
+    );
+  }
+  await run(`/v1/loans/${shortLoan}/draw`, {}, [w.borrower]);
+  await sleep(4000);
+  const { body: overdue } = await api("GET", `/v1/loans/${shortLoan}`);
+  check(
+    overdue.view.status === "overdue",
+    `unpaid short-term loan is overdue (got ${overdue.view.status})`
+  );
+  await run(`/v1/loans/${shortLoan}/repay`, {}, [w.borrower]);
+  record("short-term loan unpaid past its due time shows as overdue", {
+    dueAt: overdue.view.dueAt,
+    loan: shortLoan,
+  });
+
   const { status: otherReadStatus } = await otherApi(
     "GET",
     `/v1/vaults/${vault}`
