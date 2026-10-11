@@ -41,7 +41,7 @@ Use `--parallel=1` on build/check commands on memory-constrained machines. API t
 
 ### Local stack
 
-Everything binds to loopback where the tools allow it and keeps state under the ignored `.local/` directory. The validator loads the built program at genesis; nothing is deployed to Devnet or mainnet.
+Everything binds to loopback where the tools allow it and keeps state under the ignored `.local/` directory. The validator loads the built program at genesis. Devnet deployment is scripted separately ([docs/devnet.md](docs/devnet.md)); mainnet is out of scope.
 
 ```sh
 nix-shell --run 'bash scripts/build.sh'           # program + IDL
@@ -115,14 +115,14 @@ It creates independent treasury and two approver wallets, issues the disclosed t
 
 `apps/localnet` now seeds a loopback validator (`bun run --cwd apps/localnet seed`) and runs the end-to-end flow (`bun run e2e`); see [docs/validation.md](docs/validation.md) for recorded evidence.
 
-**LiteSVM is not a local validator.** Program tests run in LiteSVM; the service flow runs against `solana-test-validator` on loopback. Do not run `anchor test` as a deployment-free test command: it automatically deploys. Devnet and mainnet deployment remain unapproved.
+**LiteSVM is not a local validator.** Program tests run in LiteSVM; the service flow runs against `solana-test-validator` on loopback. Do not run `anchor test` as a deployment-free test command: it automatically deploys. Devnet deployment goes through `scripts/devnet.sh` ([docs/devnet.md](docs/devnet.md)); mainnet remains out of scope.
 
 ## Trust and operational limits
 
 - `FORGE_TEST_USD` is a fixture label, not token metadata, redeemable currency, certified security or transferable loan instrument. Fixtures issue test supply explicitly; funding does not mint tokens. The fixture treasury retains mint authority and can issue additional test tokens. The mint has no freeze authority.
 - Fixtures use independently generated demonstration treasury and approver wallets held only in memory. No real bank/customer data is required. Generated build keys stay under ignored `target/` and must never be reused outside disposable local testing.
 - Creating a vault does not certify a bank, and the rules restrict FORGE instructions, not every transfer of the token. Direct token donations can increase cash; they do not allocate repayment or alter loan state.
-- The program is only ever loaded at genesis of a disposable loopback validator; there is no Devnet/mainnet deployment or established upgrade authority. If deployed with the upgradeable loader later, the chosen deployment wallet retains upgrade control unless explicitly changed. The prototype must not claim the deployer has no control. `Anchor.toml` names the demonstration treasury wallet by default; deployment authority selection must be recorded at that approved step.
+- Locally the program is loaded at genesis of a disposable loopback validator. A Devnet deployment through `scripts/devnet.sh` makes the deployer keypair the upgrade authority, which can replace the program at any time; the prototype must not claim the deployer has no control. `deploy` records the authority, slot and binary hash in `.local/devnet/deployment.json`. The declared program id's keypair is not in the repository; see [docs/devnet.md](docs/devnet.md) for choosing the program identity.
 - Builds preserve the declared test program ID using `--ignore-keys`. Generated program keypairs are local artifacts, not portable deployment identities; verify/synchronize the chosen ID and keypair during an approved deployment workflow.
 - The API, worker and console are a prototype: no production custody, no real bank integration, demo API keys and webhook secrets, and browser-held demo keys in the console.
 
