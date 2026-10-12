@@ -7,7 +7,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-forge = "4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP"
+forge = "CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx"
 
 [provider]
 cluster = "localnet"

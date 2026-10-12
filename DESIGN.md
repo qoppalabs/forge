@@ -105,7 +105,9 @@ Self-host licensed font files in the application. The offline preview specifies 
 
 ## Logo directions
 
-The generated comparison sheet contains three candidate concepts, not a finalized vector master. Recommendation: refine 01 Monolith.
+**Selected mark: the Cutword app icon.** A paper-white (`#F4F2ED`) F with a diagonal cut, on a solid graphite (`#17232D`) square. The vector master is [docs/brand/forge-cutword-app-icon.svg](docs/brand/forge-cutword-app-icon.svg), with a 1024 px PNG alongside. The site icon, the site header and the console rail and favicon all use it. It supersedes the earlier recommendation below.
+
+The generated comparison sheet contains three candidate concepts and remains the exploration record. The earlier recommendation was to refine 01 Monolith.
 
 | Direction | Construction | Intended character |
 | --- | --- | --- |

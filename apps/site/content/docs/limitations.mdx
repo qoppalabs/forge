@@ -3,7 +3,7 @@ title: Limitations
 description: Trust and operational limits of the FORGE sandbox.
 ---
 
-FORGE is a local prototype. These limits apply to everything in the repository today.
+FORGE is a prototype. It runs on a local stack, and its program is deployed on Solana Devnet for demonstration with test assets only. These limits apply to everything in the repository today.
 
 ## Assets and keys
 
@@ -16,16 +16,18 @@ FORGE is a local prototype. These limits apply to everything in the repository t
 - Creating a vault does not certify a bank.
 - Vault rules govern FORGE instructions, not every transfer of the underlying token.
 - Direct token donations increase vault cash. They do not count as repayment and do not change loan state.
+- Pausing disbursements stops new draws only. Repayment, funding and treasury withdrawals continue; a withdrawal still needs both approvers.
+- Funding is deduplicated per `Idempotency-Key` only. Two funding requests with different keys both transfer, even with the same amount and source.
 
 ## Deployment
 
-- No program is deployed, and no upgrade authority has been established.
-- LiteSVM is not a local validator. Local-validator and Devnet deployment require a separate, explicitly approved step.
-- If the program is later deployed with the upgradeable loader, the deployment wallet keeps upgrade control unless it is explicitly changed.
+- Locally, the program is loaded at genesis of a disposable loopback `solana-test-validator`.
+- On Devnet the program is `CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx`, deployed with the upgradeable loader. Its upgrade authority, `FQM2nPX3s8TchNDfhzLD1Gj61AWA8CUKuaVDE5BdXcQq`, can replace the program at any time, so the deployed program is not immutable. There is no mainnet deployment.
+- LiteSVM is not a local validator. Program tests use LiteSVM; the service flow is validated on the loopback validator.
 
 ## Not yet built
 
-- Banking API, reconciler and statements
-- Operator and borrower interfaces
-- SDK transaction builders
-- Partial repayments, accrual and overdue handling
+- Production custody (HSM/MPC) integration and wallet-adapter signing; the console signs with browser-held demo keys
+- Bank-core integration beyond signed webhooks
+- Program events, receipts for treasury funding, approver rotation and withdrawal cancellation
+- Partial repayments and accrual
