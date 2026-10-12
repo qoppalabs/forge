@@ -22,6 +22,7 @@ Both secrets are ignored by git; back them up. The program key is needed again o
 | Program | `CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx` |
 | Upgrade authority | `FQM2nPX3s8TchNDfhzLD1Gj61AWA8CUKuaVDE5BdXcQq` |
 | Deployed | 11 October 2026, slot 510016536, signature `3zUKNpapz83zForg7EhFoGQzGW2xvYvsy6r5SsPmXCnTLpgfq5segcQL7Vw2VWokAue8ZoZeToh6ipUKwUqhVVBp` |
+| Built from | commit `9287122` with `bash scripts/build.sh`; later commits do not change `programs/` |
 | Program data | 321,256 bytes, SHA-256 `058cfa0c071a33095740fe74f8c6b1943a1d5ab68115e1984d602de9c2458224` |
 
 Checked after the deploy: `solana program dump` returns bytes with the same SHA-256 as the local `target/deploy/forge.so`, and a simulated `create_vault` with a made-up mint executes the program and fails on `AccountNotInitialized` (3012) for that mint, so the declared id matches the deployed address.

@@ -166,6 +166,11 @@ pre {
     center / contain no-repeat;
 }
 
+/* Paper tile on night (DESIGN.md); the graphite tile vanishes on the dark page. */
+[data-theme="dark"] .brand-mark {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='%23F4F2ED' d='M0 0H1024V1024H0Z'/%3E%3Cpath fill='%2317232D' transform='translate(217.6 192) scale(6.4)' d='M0 0H92L69 27H24L4 45L24 42H69V66H28V100H0Z'/%3E%3C/svg%3E");
+}
+
 .rail nav {
   display: flex;
   flex-direction: column;

@@ -27,16 +27,17 @@ Idempotency analysis of the original program:
    - `Vault.pause_seq` starts at 0.
    - `set_disbursement_paused(paused, expected_seq)` requires `pause_seq == expected_seq`, then increments it. A stale request fails with `StalePauseSequence` (6019).
    - Pause keeps its two-approvers-in-one-transaction signature model, as the specification requires.
+   - Pause stops `draw_loan` only. Repayment, funding and treasury withdrawals continue, as the specification's `set_disbursement_paused` row requires; a withdrawal still needs both approvers.
 3. **Append new errors only.** Codes 6000–6017 are unchanged. New codes are 6018 `InvalidWithdrawalState` and 6019 `StalePauseSequence`.
 
 ## Deferred (with reasons)
 
-- **`fund_vault` receipt PDA.** Funding is treasury-initiated and never retried automatically. The off-chain invariant (one live attempt, plus the expiry proof) covers it. Add a receipt when funding becomes automated.
+- **`fund_vault` receipt PDA.** Funding is treasury-initiated and never retried automatically. The off-chain invariant (one live attempt, plus the expiry proof) covers one operation landing twice. It does not cover two operations: two funding requests with different `Idempotency-Key`s both transfer, even with the same amount and source. The API does not dedupe by amount, because two equal top-ups can be intended. Add a receipt when funding becomes automated.
 - **Separate rent payer.** Rent is still paid by the treasury and approvers, so custody keys need SOL.
 - **`emit_cpi!` events.** The indexer decodes instructions from the IDL, and postings derive from immutable account fields. Add events when decoding cost or third-party indexing justifies it.
 - **Approver and treasury rotation, and withdrawal cancellation.** These are product decisions. Losing a key still means migrating to a new vault.
 
 ## Consequences
 
-- Account layouts changed: `Vault` gained `pause_seq`, and `Withdrawal` is new. Nothing is deployed, so there is no migration.
+- Account layouts changed: `Vault` gained `pause_seq`, and `Withdrawal` is new. Nothing was deployed when this was accepted, so there was no migration; the Devnet deployment of 11 October 2026 starts from these layouts.
 - The SDK, API, console and documentation use the new instruction set.

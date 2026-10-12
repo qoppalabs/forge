@@ -71,7 +71,7 @@ Branch `feat/ts-prototype`. This page maps every architecture-review decision an
 
 ### #6 — End-to-end lending flow
 
-- **Status:** Done, with 25 checks.
+- **Status:** Done, with 26 checks (including the short-term overdue fixture).
 - **Coverage:**
   - vault cash 10,000 → 5,000 → 10,100 and receivable 0 → 5,000 → 0;
   - premature or repeated draw, repeated repay, wrong signer, wrong account and cross-institution access fail without side effects;

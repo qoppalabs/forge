@@ -1,6 +1,12 @@
-# Milestone 1 validation — 16 September 2026
+# Validation evidence
 
-## Status
+## Current status — 12 October 2026
+
+- Milestones 1–4 of the MVP pass: 19 LiteSVM program tests, 42 API tests, 20 SDK tests and the 26-check `bun run e2e` flow on a local validator.
+- The program is deployed on Solana Devnet ([devnet.md](devnet.md)).
+- The sections below are dated records, oldest first. Each describes the state at the time it was written.
+
+## Milestone 1 status — 16 September 2026
 
 Compiled-program creation, funding and authorization checks pass in LiteSVM. **Milestone 1's local-validator exit criterion remains unpassed and deployment remains unapproved.** No local or remote deployment, validator reset, push or commit has been performed in this writer pass. Independent security review found no local-sandbox blocker; accepted reproducibility and disclosure findings are addressed below.
 
@@ -124,7 +130,7 @@ Scope: issues #1 (local-validator gate), #3 (SDK), #4 (keyless orchestration), #
 
 ### End-to-end run (`bun run e2e`)
 
-The independent treasury, approver A, approver B, borrower and outsider wallets each signed only their own transactions, after `verifyPlan` decoded the bytes. The API and worker ran as separate processes and never received a key. Result: **25 checks passed**; evidence is written to the ignored `.local/demo/e2e-evidence.json`.
+The independent treasury, approver A, approver B, borrower and outsider wallets each signed only their own transactions, after `verifyPlan` decoded the bytes. The API and worker ran as separate processes and never received a key. Result: **25 checks passed**; evidence is written to the ignored `.local/demo/e2e-evidence.json`. The short-term overdue fixture added a 26th check; the 11 October 2026 run passed all 26.
 
 | Check | Observed |
 | --- | --- |
