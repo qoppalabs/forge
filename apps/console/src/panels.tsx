@@ -768,8 +768,18 @@ export function StatementView({ data }: { data: Data }) {
           {statement.exceptions.map((e) => (
             <p key={e.id}>
               <Badge tone="error">{e.kind.replaceAll("_", " ")}</Badge>{" "}
-              <Amount base={e.amount} /> in <Id value={e.signature} size={6} />{" "}
-              — not applied to any loan; held in unallocated receipts.
+              {e.kind === "unprocessable_transaction" ? (
+                <>
+                  <Id value={e.signature} size={6} /> could not be read and was
+                  skipped; reset the vault&apos;s indexer cursors to retry it.
+                </>
+              ) : (
+                <>
+                  <Amount base={e.amount} /> in{" "}
+                  <Id value={e.signature} size={6} /> — not applied to any loan;
+                  held in unallocated receipts.
+                </>
+              )}
             </p>
           ))}
         </div>

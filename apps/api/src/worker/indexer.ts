@@ -1,8 +1,11 @@
 import type { Chain, SignatureInfo } from "../chain";
 import type { Db } from "../db";
-import type { Reconciler } from "./reconciler";
+import { enqueueEvent } from "./ledger";
+import type { ProcessResult, Reconciler } from "./reconciler";
 
 const PAGE = 500;
+/** Failed passes before a signature is quarantined so its vault keeps indexing. */
+const QUARANTINE_AFTER = 3;
 
 /**
  * Polling indexer with a persisted cursor per watched address (vault PDA and vault token
@@ -15,6 +18,7 @@ export class Indexer {
   private readonly db: Db;
   private readonly chain: Chain;
   private readonly reconciler: Reconciler;
+  private readonly failures = new Map<string, number>();
 
   constructor(db: Db, chain: Chain, reconciler: Reconciler) {
     this.db = db;
@@ -81,8 +85,17 @@ export class Indexer {
     }
     // Oldest first, so the cursor only ever moves forward over committed work.
     for (const info of pending.toReversed()) {
-      // oxlint-disable-next-line no-await-in-loop -- signatures must be processed oldest-first, one at a time
-      const result = await this.reconciler.processSignature(info.signature);
+      let result: ProcessResult;
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- signatures must be processed oldest-first, one at a time
+        result = await this.reconciler.processSignature(info.signature);
+      } catch (error) {
+        // oxlint-disable-next-line no-await-in-loop -- quarantine decides whether the cursor may move past it
+        if (!(await this.quarantine(address, info.signature, error))) {
+          throw error;
+        }
+        result = "processed";
+      }
       if (result === "not_found") {
         return;
       }
@@ -91,6 +104,56 @@ export class Indexer {
         INSERT INTO cursors (name, signature, slot) VALUES (${name}, ${info.signature}, ${info.slot.toString()})
         ON CONFLICT (name) DO UPDATE SET signature = EXCLUDED.signature, slot = EXCLUDED.slot, updated_at = now()`;
     }
+  }
+
+  /**
+   * A signature that keeps failing (an unsupported transaction version, data that will not decode)
+   * becomes an `unprocessable_transaction` exception on its vault and is skipped, so one
+   * transaction cannot freeze the vault's indexing. RPC outages fail earlier, while listing
+   * signatures. Removing the exception and the vault's cursors re-ingests it.
+   * shortcut: counts failed passes, not elapsed time; add a time window if transient per-signature
+   * RPC errors ever quarantine a valid transaction.
+   */
+  private async quarantine(
+    address: string,
+    signature: string,
+    error: unknown
+  ): Promise<boolean> {
+    const attempts = (this.failures.get(signature) ?? 0) + 1;
+    this.failures.set(signature, attempts);
+    if (attempts < QUARANTINE_AFTER) {
+      return false;
+    }
+    this.failures.delete(signature);
+    const { network } = this.chain;
+    await this.db.begin(async (raw) => {
+      const sql = raw as Db;
+      const [vault] = await sql`
+        SELECT address, institution_id FROM vaults WHERE address = ${address} OR token_account = ${address}`;
+      if (!vault) {
+        return;
+      }
+      const { message } = error as Error;
+      const [exception] = await sql`
+        INSERT INTO exceptions (network, vault, kind, signature, details)
+        VALUES (${network}, ${vault.address}, 'unprocessable_transaction', ${signature}, ${{ error: message }})
+        ON CONFLICT (network, vault, kind, signature) DO NOTHING RETURNING id`;
+      if (exception) {
+        await enqueueEvent(sql, {
+          eventId: `exception:${exception.id}`,
+          institutionId: vault.institution_id,
+          payload: {
+            error: message,
+            exceptionId: exception.id,
+            kind: "unprocessable_transaction",
+            signature,
+            vault: vault.address,
+          },
+          type: "exception.created",
+        });
+      }
+    });
+    return true;
   }
 
   /** Signatures newer than `until` (exclusive) or at/after `floor`, newest first. */

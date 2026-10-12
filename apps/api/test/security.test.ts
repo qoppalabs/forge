@@ -161,6 +161,40 @@ describe("third-party chain data", () => {
     expect(Object.keys(await errors())).toContain("indexer");
   });
 
+  test("a transaction that keeps failing is quarantined and its own vault keeps indexing", async () => {
+    const { intent } = await h.createVault();
+    // e.g. a v1 transaction the RPC client cannot return: every fetch fails the same way.
+    const stuck = inject({
+      feePayer: randomAddress(),
+      instructions: [],
+      watch: [intent.vaultTokenAccount],
+    });
+    const getTransaction = h.chain.getTransaction.bind(h.chain);
+    h.chain.getTransaction = (signature: string) =>
+      signature === stuck
+        ? Promise.reject(new Error("Transaction version (1) is not supported"))
+        : getTransaction(signature);
+    h.setVault(intent, {}, 700n);
+    const donation = randomAddress();
+    h.chain.landRaw({
+      feePayer: randomAddress(),
+      signature: donation,
+      tokenBalances: [deposit(intent, 700n)],
+    });
+    const worker = h.worker();
+    for (let pass = 0; pass < 3; pass += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- each tick is one failed pass over the stuck signature
+      await worker.tick();
+    }
+    const [seen] =
+      await h.db`SELECT count(*)::int AS n FROM chain_transactions WHERE signature = ${donation}`;
+    expect(seen.n).toBe(1);
+    const [quarantined] =
+      await h.db`SELECT kind FROM exceptions WHERE signature = ${stuck}`;
+    expect(quarantined.kind).toBe("unprocessable_transaction");
+    expect(await errors()).toEqual({});
+  });
+
   test("a third party's failing transaction that copies an operation memo does not fail the operation", async () => {
     const { intent } = await h.createVault();
     const { body: fund } = await h.api(
