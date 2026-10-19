@@ -263,7 +263,10 @@ export function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">
-              Local sandbox · {data.status?.network ?? "…"}
+              {data.status?.network === "localnet"
+                ? "Local sandbox"
+                : "Sandbox"}{" "}
+              · {data.status?.network ?? "…"}
             </p>
             <h1>Bank-controlled lending</h1>
           </div>
