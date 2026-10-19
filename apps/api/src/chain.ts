@@ -1,12 +1,37 @@
 import { base64ToBytes, sha256Hex } from "@forge/sdk";
 import {
-  createSolanaRpc,
+  SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR,
+  createDefaultRpcTransport,
+  createSolanaRpcFromTransport,
   getAddressDecoder,
   getBase58Encoder,
   getCompiledTransactionMessageDecoder,
   getTransactionDecoder,
+  isSolanaError,
 } from "@solana/kit";
 import type { Address, Signature } from "@solana/kit";
+
+/** Public RPC endpoints (Devnet) answer bursts with HTTP 429; back off and retry those. */
+function retryingTransport(url: string) {
+  const transport = createDefaultRpcTransport({ url });
+  return (async (config: Parameters<typeof transport>[0]) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- retries are sequential by design
+        return await transport(config);
+      } catch (error) {
+        const limited =
+          isSolanaError(error, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR) &&
+          error.context.statusCode === 429;
+        if (!limited || attempt >= 6) {
+          throw error;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- exponential backoff between attempts
+        await Bun.sleep(400 * 2 ** attempt);
+      }
+    }
+  }) as typeof transport;
+}
 
 export type Commitment = "processed" | "confirmed" | "finalized";
 
@@ -199,7 +224,7 @@ export class RpcChain implements Chain {
 
   constructor(url: string, network: string) {
     this.network = network;
-    this.rpc = createSolanaRpc(url);
+    this.rpc = createSolanaRpcFromTransport(retryingTransport(url));
   }
 
   async getLatestBlockhash() {

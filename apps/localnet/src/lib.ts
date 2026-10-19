@@ -7,13 +7,16 @@ import {
   getMintToCheckedInstruction,
 } from "@solana-program/token";
 import {
+  SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR,
   appendTransactionMessageInstructions,
+  createDefaultRpcTransport,
   createKeyPairFromPrivateKeyBytes,
   createSignerFromKeyPair,
-  createSolanaRpc,
+  createSolanaRpcFromTransport,
   createTransactionMessage,
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
+  isSolanaError,
   lamports,
   pipe,
   setTransactionMessageFeePayerSigner,
@@ -32,8 +35,30 @@ import type {
 /** Loopback validator RPC, including test-cluster methods such as `requestAirdrop`. */
 export type Rpc = KitRpc<SolanaRpcApi>;
 
+/** Public RPC endpoints (Devnet) answer bursts with HTTP 429; back off and retry those. */
+function retryingTransport(url: string) {
+  const transport = createDefaultRpcTransport({ url });
+  return (async (config: Parameters<typeof transport>[0]) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- retries are sequential by design
+        return await transport(config);
+      } catch (error) {
+        const limited =
+          isSolanaError(error, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR) &&
+          error.context.statusCode === 429;
+        if (!limited || attempt >= 6) {
+          throw error;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- exponential backoff between attempts
+        await Bun.sleep(400 * 2 ** attempt);
+      }
+    }
+  }) as typeof transport;
+}
+
 export const createRpc = (url: string) =>
-  createSolanaRpc(url) as unknown as Rpc;
+  createSolanaRpcFromTransport(retryingTransport(url)) as unknown as Rpc;
 
 /** A demonstration wallet. Its seed exists only in the local harness and ignored files. */
 export interface Wallet {
