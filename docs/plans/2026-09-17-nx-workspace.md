@@ -1,8 +1,8 @@
 # FORGE Nx Workspace Implementation Plan
 
-> **REQUIRED SUB-SKILL:** Use the executing-plans skill to implement this plan task-by-task.
+> **Status:** completed, then partly superseded. The Next.js and Expo starters, the shared UI package, `apps/backend` and the Docker configuration were later removed (`7e3715b`, `ee549de`), and `services/banking` was retired by [ADR 0001](../adr/0001-typescript-backend.md). `apps/site` replaced the web starter.
 
-**Goal:** Add the requested Bun/Nx multi-language workspace to the existing FORGE repository without replacing its Rust program or deploying anything.
+**Goal:** Add a Bun/Nx multi-language workspace to the existing FORGE repository without replacing its Rust program or deploying anything.
 
 **Architecture:** Better-T-Stack generates Next.js and Expo/Uniwind in an ignored staging directory; only new scaffold files are copied into the approved existing root. Nx orchestrates package scripts and native Go/Rust commands without additional framework plugins. The TypeScript SDK packages the existing generated program IDL; backend and banking services start as local health-only shells, not financial implementations.
 
@@ -12,20 +12,20 @@
 
 ## Scope and safety
 
-- User selected the existing `forge/` root; preserve Git history, Cargo files, program source, tests, brand documents and existing shell scripts.
-- Keep database, ORM, authentication, payments, API framework, examples and server deployment absent, as requested.
-- No chain deployment, Docker deployment, wallet access, signing, financial endpoints, Nx Cloud, global agent configuration or commits.
+- Build in the existing `forge/` root; preserve Git history, Cargo files, program source, tests, brand documents and existing shell scripts.
+- Keep database, ORM, authentication, payments, API framework, examples and server deployment absent at this stage.
+- No chain deployment, Docker deployment, wallet access, signing, financial endpoints or Nx Cloud.
 - Use the Better-T-Stack Nx addon as the single scaffold; do not run a second workspace creator over existing files.
 
 ## Task 1: Generate and inspect the scaffold
 
 - Inspect Better-T-Stack's current CLI schema and pin the resolved generator version for replay.
-- Generate into `.cache/better-t-stack/forge/` with the requested stack and explicit project-local addon options.
+- Generate into `.cache/better-t-stack/forge/` with the chosen stack and explicit project-local addon options.
 - Delay dependency installation until files are integrated at the root, avoiding two full installs.
 - Inspect generated manifests, `nx.json`, Docker files, lint configuration and agent configuration; summarize generated content before adding services.
 - Copy only absent root paths. Merge `.gitignore` and README deliberately rather than overwriting either.
 
-## Task 2: Add requested service and SDK boundaries
+## Task 2: Add service and SDK boundaries
 
 - Create `apps/backend/` with Bun/TypeScript build, typecheck, local health route and a small request-level regression test. Write and run the test before the implementation.
 - Create `services/banking/` with a Go module, standard-library HTTP health handler, timeouts and a small `httptest` regression test. Write and run the test before the implementation.
@@ -51,7 +51,7 @@
 
 ## Completion evidence
 
-- Better-T-Stack 3.44.0 generated the requested frontend/addon combination; installation completed at the root. `bun install --frozen-lockfile` also passed inside the pinned Nix shell (Bun 1.4.2).
+- Better-T-Stack 3.44.0 generated the chosen frontend/addon combination; installation completed at the root. `bun install --frozen-lockfile` also passed inside the pinned Nix shell (Bun 1.4.2).
 - `npx nx run-many -t build` passed for all six buildable projects; the repeat run used six local cache hits. Graph contains eight projects including the shared UI/config packages, without extra language plugins.
 - `npx nx run-many -t build check-types test --parallel=1 --output-style=static` passed. Tests cover 10 existing Rust vault cases, Go health routing, TypeScript backend health routing, SDK runtime/declaration artifact packaging, and the Expo build lifecycle guard.
 - SDK import passed in Node ESM, and a TypeScript NodeNext consumer compiled with `tsc --ignoreConfig --noEmit --module nodenext --moduleResolution nodenext --target esnext --resolveJsonModule --types node .cache/sdk-consumer.mts`.
@@ -68,4 +68,4 @@
 
 ### Remaining boundaries
 
-Docker image build/container execution, device/emulator execution and financial integrations are not validated or implemented. No program was deployed, no wallet was accessed, and no commit or push was performed. Existing Rust source, Cargo/Anchor configuration, tests and build scripts are unchanged.
+Docker image build/container execution, device/emulator execution and financial integrations are not validated or implemented. No program was deployed and no wallet was accessed. Existing Rust source, Cargo/Anchor configuration, tests and build scripts are unchanged.

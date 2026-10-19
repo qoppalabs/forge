@@ -3,7 +3,7 @@ title: Loan lifecycle
 description: How a loan moves from proposal to repayment, who signs each step, and what the program checks.
 ---
 
-A loan moves through four states. Each instruction checks the current state before it runs, so a step cannot be skipped or repeated.
+A loan moves through four states. Each instruction checks the current state before it runs, so a step cannot be skipped or repeated. Withdrawals and the disbursement pause run alongside loans, with the same two approvers.
 
 ```text
 Proposed ──(both approvals)──▶ Approved ──(draw)──▶ Active ──(repay)──▶ Repaid
@@ -13,15 +13,23 @@ Proposed ──(both approvals)──▶ Approved ──(draw)──▶ Active �
 
 | Instruction | Signer | Effect |
 | --- | --- | --- |
-| `create_vault` | Treasury | Creates the vault with two approvers, a mint, limits and a treasury destination. |
+| `create_vault` | Treasury | Creates the vault and its token account with a caller-chosen `vault_id`, two approvers, a six-decimal mint, limits and a treasury destination. |
 | `fund_vault` | Treasury | Transfers tokens from the treasury into the vault token account. |
-| `propose_loan` | One configured approver | Creates a loan with fixed principal, rate, term, expiry and borrower destination. |
+| `propose_loan` | One configured approver | Creates a loan under a caller-chosen `loan_id` with fixed principal, rate, term, offer expiry and borrower destination. |
 | `approve_loan` | Each configured approver | Records one approval. The second distinct approval moves the loan to `Approved`. |
 | `draw_loan` | Borrower | Transfers principal to the borrower destination and moves the loan to `Active`. |
 | `repay_loan` | Borrower | Transfers the fixed payoff into the vault and moves the loan to `Repaid`. |
 | `propose_withdrawal` | One configured approver | Records a withdrawal amount under a caller-chosen `withdrawal_id`; counts as that approver's approval. |
-| `approve_withdrawal` | The other approver | Transfers the amount to the fixed treasury destination and marks the withdrawal executed. |
-| `set_disbursement_paused` | Both approvers | Pauses or resumes new draws. Must quote the vault's current `pause_seq`. Repayment stays available. |
+| `approve_withdrawal` | The other approver | Records the second approval, transfers the amount to the fixed treasury destination and marks the withdrawal `Executed`. |
+| `set_disbursement_paused` | Both approvers, in one transaction | Pauses or resumes new draws. Must quote the vault's current `pause_seq`. Repayment stays available. |
+
+## Withdrawal flow
+
+```text
+Proposed ──(other approver)──▶ Executed
+```
+
+A withdrawal account lives at `["withdrawal", vault, withdrawal_id]`. The proposal counts as the proposer's approval, so the other configured approver completes the pair and the transfer happens in that same instruction. There is no cancellation instruction.
 
 ## Rules enforced by the program
 
@@ -30,35 +38,37 @@ Proposed ──(both approvals)──▶ Approved ──(draw)──▶ Active �
 
 ### Proposal fixes the terms
 
-The principal must be positive and within the vault's per-loan limit. The term must be positive and the offer expiry in the future. Interest is computed once as `principal × term_rate_bps ÷ 10,000` (rounded down) and stored with the fixed payoff. It is never recomputed.
+The principal must be positive and within the vault's per-loan limit. The term must be positive and the offer expiry in the future. The destination must be a token account of the vault's mint owned by the borrower. Interest is computed once as `principal × term_rate_bps ÷ 10,000` (rounded down) and stored with the fixed payoff. It is never recomputed.
 
 </Step>
 <Step>
 
 ### Two distinct approvals
 
-Only the vault's two configured approvers can approve, and each can approve once. The loan becomes `Approved` only when both have approved.
+Only the vault's two configured approvers can approve, each can approve once, and only while the loan is `Proposed`. The loan becomes `Approved` only when both have approved.
 
 </Step>
 <Step>
 
 ### Draw is gated
 
-A draw requires an `Approved` loan, an unpaused vault, an unexpired offer, enough vault liquidity, and outstanding principal that stays within the vault's limit. Only the named borrower can draw, and only to their own token account.
+A draw requires an `Approved` loan, an unpaused vault, an unexpired offer, enough vault liquidity, and outstanding principal that stays within the vault's limit. Only the named borrower can draw, and only to the destination fixed at proposal.
 
 </Step>
 <Step>
 
 ### Repayment is fixed
 
-The borrower repays the fixed payoff in one transfer. The loan's principal is removed from the vault's outstanding total.
+The borrower repays the fixed payoff in one transfer from a token account they own. The loan's principal is removed from the vault's outstanding total; the interest stays in the vault as cash.
 
 </Step>
 <Step>
 
 ### Withdrawals and pause are replay-safe
 
-A withdrawal moves funds once: replaying its proposal fails because the PDA already exists, and replaying an approval fails with `InvalidWithdrawalState`. Each approver signs their own transaction. A pause change must quote `pause_seq`, which increments on every change, so a stale request cannot undo a newer pause (`StalePauseSequence`).
+A withdrawal moves funds once: replaying its proposal fails because the PDA already exists, and replaying an approval fails with `InvalidWithdrawalState`. The proposer cannot approve their own proposal (`AlreadyApproved`), and execution needs enough vault cash (`InsufficientLiquidity`). Each approver signs their own transaction.
+
+A pause change is signed by both approvers in one transaction and must quote `pause_seq`. It starts at `0` and increments on every applied change, so a stale request cannot undo a newer pause (`StalePauseSequence`). Pausing blocks draws only; repayment, funding and withdrawals continue.
 
 </Step>
 </Steps>

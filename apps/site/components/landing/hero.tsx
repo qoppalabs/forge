@@ -11,10 +11,10 @@ import { ApprovalPanel } from "./approval-panel";
 import { Container } from "./section";
 
 const facts = [
-  ["8", "Program instructions"],
+  ["9", "Program instructions"],
   ["2", "Distinct approvals per loan"],
   ["4", "Loan states"],
-  ["0", "Deployments: local sandbox"],
+  ["Devnet", "Test assets only"],
 ];
 
 export function Hero() {

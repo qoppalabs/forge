@@ -1,0 +1,136 @@
+---
+title: REST API
+description: Institution-scoped endpoints that plan unsigned transactions, collect signatures and report settlement.
+---
+
+The API (`apps/api`) plans transactions, collects signatures and reports settlement. It never holds or receives a private key: the treasury, the approvers and the borrower sign every transaction themselves. A separate worker broadcasts the signed bytes and reconciles finalized results. The API and the worker share only PostgreSQL.
+
+<Callout type="warn">
+  API keys and webhook secrets are demo values. There is no key rotation or
+  revocation yet.
+</Callout>
+
+## Run it
+
+```sh
+bun run dev:api                                  # API on :3002 plus the worker
+bun apps/api/src/main.ts api                     # or one role per process: api, worker, all
+```
+
+| Variable               | Default                                  |
+| ---------------------- | ---------------------------------------- |
+| `FORGE_API_ADDR`       | `127.0.0.1:3002`                         |
+| `FORGE_DATABASE_URL`   | `postgres://forge@127.0.0.1:54329/forge` |
+| `FORGE_NETWORK`        | `localnet`                               |
+| `FORGE_RPC_URL`        | `http://127.0.0.1:8899`                  |
+| `FORGE_WORKER_TICK_MS` | `1000`                                   |
+
+Every mode applies pending database migrations at startup.
+
+## Authentication
+
+Each bank is an institution with its own API key and webhook secret. The CLI prints both once:
+
+```sh
+bun apps/api/src/cli.ts create-institution --name "Core Bank" --webhook-url http://127.0.0.1:4010/hook
+# {"apiKey":"fk_…","institutionId":"…","webhookSecret":"whsec_…"}
+```
+
+Send the key on every request except `GET /health`:
+
+```http
+Authorization: Bearer fk_…
+```
+
+Only the key's SHA-256 is stored. Every read and write is scoped to the key's institution: another institution's vault, loan, withdrawal or operation returns `404`.
+
+## Conventions
+
+- Amounts are positive integers in the mint's base units, sent and returned as decimal strings. `termRateBps` is a JSON integer from 0 to 10,000. `termSeconds` and `offerExpiry` (Unix seconds) are strings.
+- The path parameters `:vault`, `:loan` and `:withdrawal` are on-chain base58 addresses.
+- `reference` is your business reference: 1 to 64 characters from `A–Z a–z 0–9 . _ : -`. The 32-byte on-chain id is `sha256("forge:<kind>:v1|<scope>|<reference>")`, scoped by the institution for vaults and by the vault for loans and withdrawals. A retried request targets the same account; reusing a reference with different terms returns `409 reference_conflict`.
+- Request bodies are strict, so unknown fields return `400 invalid_request`. Bodies are limited to 64 KiB.
+- Errors have the shape `{"error": {"code": "…", "message": "…", "details": …}}`. Successful responses have no envelope.
+
+## Plan an operation
+
+Each action is a `POST` with an `Idempotency-Key` header of at most 128 characters that does not start with `chain:`. It returns `201` with a new operation, or `200` with the original operation when the same key arrives with the same body. The same key with a different body returns `409 idempotency_conflict` and the original `operationId`.
+
+| Route | Body | Signs |
+| --- | --- | --- |
+| `POST /v1/vaults` | `reference`, `treasury`, `mint`, `treasuryDestination`, `approvers` (two distinct addresses), `perLoanLimit`, `outstandingLimit` | Treasury |
+| `POST /v1/vaults/:vault/fund` | `amount`, `source` | Treasury |
+| `POST /v1/vaults/:vault/loans` | `reference`, `approver`, `borrower`, `destination`, `principal`, `termRateBps`, `termSeconds`, `offerExpiry` | The proposing approver |
+| `POST /v1/loans/:loan/approve` | `approver` | That approver |
+| `POST /v1/loans/:loan/draw` | `{}` | Borrower |
+| `POST /v1/loans/:loan/repay` | `borrowerTokens`, optional; defaults to the loan's destination | Borrower |
+| `POST /v1/vaults/:vault/withdrawals` | `reference`, `approver`, `amount` | The proposing approver |
+| `POST /v1/withdrawals/:withdrawal/approve` | `approver` | The other approver |
+| `POST /v1/vaults/:vault/pause` | `paused`; `approverA` and `approverB` default to the vault's approvers | Both approvers |
+
+The API checks state, approvers, limits, expiry and the pause against the chain and answers `409` or `422` early. These checks are a convenience: the program enforces every rule again.
+
+## Review and sign the plan
+
+While an attempt awaits signatures, the operation carries a `plan`:
+
+| Field | Meaning |
+| --- | --- |
+| `transaction` | Base64 wire transaction, unsigned or partially signed. |
+| `intent` | The instruction kind with its accounts and arguments. |
+| `display` | Amounts and terms for a review screen, such as `principal`, `interest` and `payoff`. |
+| `requiredSigners`, `signedBy` | Who must sign and who already has. The first required signer pays the fee. |
+| `memo` | `forge:op:<operationId>:<attemptNo>`. It makes every attempt unique and traceable. |
+| `blockhash`, `lastValidBlockHeight` | The attempt's lifetime. |
+| `messageHash`, `network`, `programId` | What the signer verifies against. |
+
+Each signer decodes the bytes and compares them with the intent before signing, with `verifyPlan` from [`@forge/sdk`](/docs/sdk) or an equivalent decoder. Then they send the signed transaction:
+
+```http
+POST /v1/operations/:id/signatures
+{"transaction": "<base64>"}
+```
+
+Every signature must verify against the stored message bytes. An altered message or an unexpected signer returns `422 signature_rejected`. Partial signatures are merged, so the two approvers of a pause can sign one after the other. When every required signer has signed, the API stores the signed bytes before any broadcast, and the worker rebroadcasts the same bytes until they land or expire. It never rebuilds a transaction.
+
+## Operation states
+
+| Status | Meaning |
+| --- | --- |
+| `prepared` | Waiting for signatures. |
+| `submitted` | Fully signed and broadcast. |
+| `confirmed` | Landed at `confirmed` commitment. Not settled. |
+| `finalized` | Settled. Statement postings and webhooks exist only from here. |
+| `failed` | Landed with an error, and the intended effect is not on chain. |
+| `already_applied` | A replay failed, but the intended effect is already on chain. |
+| `needs_review` | The on-chain account contradicts the request. |
+| `expired` | The blockhash expired before the transaction landed. |
+
+`expired` is set only with proof: the finalized block height has passed `lastValidBlockHeight` and a history search does not find the signature. `POST /v1/operations/:id/prepare` then creates a new attempt with a new blockhash, and the signers sign again.
+
+## Reads
+
+| Route | Returns |
+| --- | --- |
+| `GET /health` | `{"service":"forge-api","status":"ok"}`, without authentication. |
+| `GET /v1/status` | Network, program id, finalized block height and the worker's last heartbeat. |
+| `GET /v1/vaults`, `GET /v1/vaults/:vault` | The institution's vaults. |
+| `GET /v1/vaults/:vault/loans`, `GET /v1/loans/:loan` | Loans, each with a computed `view` that includes expiry and overdue status. |
+| `GET /v1/vaults/:vault/withdrawals` | Withdrawals. |
+| `GET /v1/vaults/:vault/operations` | The last 200 operations, newest first. |
+| `GET /v1/operations/:id` | One operation with its attempts and current plan. |
+| `GET /v1/vaults/:vault/statement` | Postings, balances, exceptions and the cash reconciliation. See [Webhooks and statements](/docs/webhooks). |
+| `GET /v1/events?after=<id>` | Up to 500 webhook events after an outbox id, for polling. |
+
+## Error codes
+
+| Status | Codes |
+| --- | --- |
+| 400 | `invalid_json`, `invalid_request`, `idempotency_key_required`, `idempotency_key_reserved`, `invalid_transaction` |
+| 401 | `unauthorized` |
+| 404 | `not_found` |
+| 409 | `idempotency_conflict`, `reference_conflict`, `not_on_chain`, `invalid_state`, `already_approved`, `paused`, `operation_closed`, `no_open_attempt`, `not_expired`, `attempt_open` |
+| 413 | `too_large` |
+| 422 | `not_an_approver`, `per_loan_limit`, `offer_expiry`, `invalid_destination`, `signature_rejected` |
+| 429 | `too_many_pending_vaults`: at most 20 vaults per institution may await creation |
+| 500 | `internal` |

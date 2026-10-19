@@ -25,8 +25,10 @@ const tabs = [
 const facts = [
   ["Program", "Rust · Anchor 1.2.0"],
   ["Tests", "Compiled program in LiteSVM"],
-  ["SDK", "TypeScript IDL, types, program ID"],
+  ["SDK", "Builders, plan verification, decoders"],
+  ["API", "Keyless REST · signed webhooks"],
   ["Toolchain", "Pinned with Nix flakes"],
+  ["License", "Apache-2.0"],
 ];
 
 export function Developer() {

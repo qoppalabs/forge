@@ -2,7 +2,7 @@
 
 **Banking infrastructure. Onchain.**
 
-Open source developer sandbox for traditional-bank workflows on Solana. The Anchor program implements vault creation/funding, the milestone 2 loan lifecycle and dual-approver withdrawals. A TypeScript SDK, a keyless orchestration API with a reconciling worker, and an operator console exercise the full flow on a disposable loopback validator. It is not a banking service, audited protocol, or production-ready custody system.
+Open source developer sandbox for traditional-bank workflows on Solana, licensed under [Apache-2.0](LICENSE). The Anchor program implements vault creation/funding, the milestone 2 loan lifecycle and dual-approver withdrawals. A TypeScript SDK, a keyless orchestration API with a reconciling worker, and an operator console exercise the full flow on a disposable loopback validator; the program and the demo fixtures also run on Solana Devnet with test assets. It is not a banking service, audited protocol, or production-ready custody system.
 
 ## Implemented boundary
 
@@ -12,7 +12,7 @@ Open source developer sandbox for traditional-bank workflows on Solana. The Anch
 - Treasury explicitly selects a six-decimal legacy mint at creation. That address is fixed for the vault, not a global issuer allowlist or proof of bank identity. Wrong mints, owners, token programs and cross-vault account substitutions fail.
 - Funding uses checked integer token transfers. The fixture funds **10,000 FORGE_TEST_USD = 10,000,000,000 base units**.
 
-Loan terms are fixed at proposal, require two distinct approver approvals, and can be drawn once by the designated borrower. Repayment collects the fixed payoff. Withdrawals are proposed by one approver and execute when the other approves; `withdrawal_id` makes replays fail instead of moving funds twice. Pause changes carry the vault's `pause_seq`, so a delayed stale request cannot undo a newer one. This is still a local prototype; never fund it with assets of real value.
+Loan terms are fixed at proposal, require two distinct approver approvals, and can be drawn once by the designated borrower. Repayment collects the fixed payoff. Withdrawals are proposed by one approver and execute when the other approves; `withdrawal_id` makes replays fail instead of moving funds twice. Pause changes carry the vault's `pause_seq`, so a delayed stale request cannot undo a newer one. This is a prototype; never fund it with assets of real value.
 
 Architecture decisions: [ADR 0001 TypeScript backend](docs/adr/0001-typescript-backend.md), [ADR 0002 keyless orchestration](docs/adr/0002-keyless-orchestration.md), [ADR 0003 program idempotency](docs/adr/0003-program-idempotency.md).
 
@@ -41,7 +41,7 @@ Use `--parallel=1` on build/check commands on memory-constrained machines. API t
 
 ### Local stack
 
-Everything binds to loopback where the tools allow it and keeps state under the ignored `.local/` directory. The validator loads the built program at genesis. Devnet deployment is scripted separately ([docs/devnet.md](docs/devnet.md)); mainnet is out of scope.
+Everything binds to loopback where the tools allow it and keeps state under the ignored `.local/` directory. The validator loads the built program at genesis. Devnet deployment and the Devnet demo fixtures are scripted separately ([docs/devnet.md](docs/devnet.md)); mainnet is out of scope.
 
 ```sh
 nix-shell --run 'bash scripts/build.sh'           # program + IDL
@@ -77,7 +77,7 @@ The API never receives a private key. Demo wallets live only in `.local/demo/ses
 
 SDK build depends on the Anchor build, copies only public IDL/types into ignored `packages/sdk/src/generated/`, and emits JavaScript, declarations and JSON under `dist/`. Never edit or commit those generated copies. Nx caches public program outputs, not generated keypairs; Nx Cloud is disabled.
 
-The scaffold came from Better-T-Stack **3.44.0**, generated in `.cache/` and integrated without replacing existing Git/Cargo files. `bts.jsonc` records generator choices; the generated web/native starters, shared UI package and Go service have since been removed (ADR 0001). `bun.lock` locks dependencies. Requested addons are configured: Nx, Oxlint/Ultracite, project-local MCP (`.mcp.json`: Nx and Next DevTools), and local React/Expo skills (`.agents/skills`, `skills-lock.json`). MCP configuration is not an automatically running server. No global agent settings were changed.
+The scaffold came from Better-T-Stack **3.44.0**, generated in `.cache/` and integrated without replacing existing Git/Cargo files. `bts.jsonc` records generator choices; the generated web/native starters, shared UI package and Go service have since been removed (ADR 0001). `bun.lock` locks dependencies. Configured addons: Nx, Oxlint/Ultracite, project-local MCP (`.mcp.json`: Nx and Next DevTools) and project-local agent skills (`.agents/skills`, `skills-lock.json`). MCP configuration is not an automatically running server.
 
 Static graph export:
 
@@ -120,16 +120,18 @@ It creates independent treasury and two approver wallets, issues the disclosed t
 ## Trust and operational limits
 
 - `FORGE_TEST_USD` is a fixture label, not token metadata, redeemable currency, certified security or transferable loan instrument. Fixtures issue test supply explicitly; funding does not mint tokens. The fixture treasury retains mint authority and can issue additional test tokens. The mint has no freeze authority.
-- Fixtures use independently generated demonstration treasury and approver wallets held only in memory. No real bank/customer data is required. Generated build keys stay under ignored `target/` and must never be reused outside disposable local testing.
+- Fixtures use independently generated demonstration wallets. The LiteSVM fixture holds them only in memory; the seed writes them to the ignored `.local/demo/session.json` (`.local/devnet/` on Devnet). No real bank/customer data is required. Generated build keys stay under ignored `target/` and must never be reused outside disposable local testing.
 - Creating a vault does not certify a bank, and the rules restrict FORGE instructions, not every transfer of the token. Direct token donations can increase cash; they do not allocate repayment or alter loan state.
 - Locally the program is loaded at genesis of a disposable loopback validator. A Devnet deployment through `scripts/devnet.sh` makes the deployer keypair the upgrade authority, which can replace the program at any time; the prototype must not claim the deployer has no control. `deploy` records the authority, slot and binary hash in `.local/devnet/deployment.json`. Program and upgrade-authority keys live only under the deploying machine's `.local/devnet/`; see [docs/devnet.md](docs/devnet.md).
-- Builds preserve the declared test program ID using `--ignore-keys`. Generated program keypairs are local artifacts, not portable deployment identities; verify/synchronize the chosen ID and keypair during an approved deployment workflow.
+- Builds preserve the declared program ID (the Devnet address) using `--ignore-keys`. Generated program keypairs are local artifacts, not portable deployment identities; `scripts/devnet.sh check` verifies that the program keypair, `declare_id!` and the IDL agree before a deploy.
 - The API, worker and console are a prototype: no production custody, no real bank integration, demo API keys and webhook secrets, and browser-held demo keys in the console.
 
 See [validation evidence and remaining gates](docs/validation.md), [product specification](docs/FORGE-MVP-v0.1.md), and [implementation plan](docs/plans/2026-09-16-vault.md).
 
 ## Brand and licensing
 
-[DESIGN.md](DESIGN.md) and [docs/brand/](docs/brand/) preserve the supplied visual identity. Logo concepts and HTML are references, not a working operator interface or finalized vector mark. Generated starter screens are not branded banking interfaces.
+[DESIGN.md](DESIGN.md) and [docs/brand/](docs/brand/) define FORGE's visual identity. The mark is the Cutword app icon ([SVG master](docs/brand/forge-cutword-app-icon.svg)). The logo concept sheet and `FORGE-IDENTITY.html` are exploration references, not a working operator interface.
 
-Application source is proprietary; no open-source license is granted. The MIT notice in `docs/brand/REFERENCE-LICENSE.txt` applies to the referenced brand collection, not the application. Dependency licenses remain their own.
+The whole repository is licensed under the [Apache License 2.0](LICENSE): the program, the SDK, the API and worker, the console, the local tooling, the site, the examples and the documentation. `programs/forge`, `packages/sdk` and `examples/bank-core` also carry a copy of the license, so it travels with them when they are used on their own.
+
+The MIT notice in `docs/brand/REFERENCE-LICENSE.txt` applies to the referenced brand collection, not the application. Dependency licenses remain their own.

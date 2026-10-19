@@ -6,29 +6,49 @@ description: FORGE connects existing banking systems with programmable financial
 FORGE is a developer sandbox for traditional-bank workflows on Solana. Its first workflow is **bank-controlled lending**: a treasury funds a vault, two distinct approvers authorize each loan, and the borrower draws and repays against terms that were fixed at proposal.
 
 <Callout type="warn" title="Sandbox, not a banking service">
-  FORGE is a local prototype. It is not an audited protocol, a deployed program,
-  or a production custody system. Never fund it with assets of real value.
+  FORGE is a prototype. It is not a banking service, an audited protocol or a
+  production custody system. It runs on a disposable local validator and on
+  Solana Devnet with test assets only. Never fund it with assets of real value.
 </Callout>
 
 ## What is implemented
 
-- One Anchor program with eight instructions: `create_vault`, `fund_vault`, `propose_loan`, `approve_loan`, `draw_loan`, `repay_loan`, `withdraw_available` and `set_disbursement_paused`.
-- A treasury-owned vault with two immutable approver keys, a fixed mint, per-loan and outstanding-principal limits, and a fixed treasury destination.
-- A fixed-payoff loan lifecycle: `Proposed → Approved → Active → Repaid`.
-- Tests that execute the compiled program in LiteSVM, including authorization, limit and account-substitution failures.
-- `@forge/sdk`, a workspace package that exports the program IDL, the generated `Forge` type and `FORGE_PROGRAM_ID`.
+- One Anchor program with nine instructions: `create_vault`, `fund_vault`, `propose_loan`, `approve_loan`, `draw_loan`, `repay_loan`, `propose_withdrawal`, `approve_withdrawal` and `set_disbursement_paused`.
+- A treasury-owned vault with two immutable approver keys, a fixed six-decimal mint, per-loan and outstanding-principal limits, and a fixed treasury destination.
+- A fixed-payoff loan lifecycle, `Proposed → Approved → Active → Repaid`, that needs two distinct approvals.
+- Withdrawals proposed by one approver and executed by the other. A replayed `withdrawal_id` fails instead of moving funds twice.
+- A disbursement pause whose changes quote the vault's `pause_seq`, so a stale request cannot undo a newer one.
+- `@forge/sdk`: IDL-driven `@solana/kit` builders, unsigned plans, signer-side verification, account decoders, error classification and loan views.
+- A keyless [REST API](/docs/api) and a reconciling worker that share only PostgreSQL. Neither ever receives a private key.
+- [Signed webhooks and a balanced statement](/docs/webhooks), built only from finalized transactions.
+- An [operator console](/docs/console) for plan review, local demo signing, settlement and statement export.
+- Fixture seeding and a scripted end-to-end run against a loopback `solana-test-validator`. The same seed creates the demo fixtures on Devnet.
+- A [bank-core example](/docs/bank-core) that consumes FORGE without the SDK: it verifies signed webhooks, applies each event id once and reconciles statements over REST.
+- A [Devnet deployment](/docs/devnet) of the program, with demo wallets and a `FORGE_TEST_USD` mint.
 
 ## What is not implemented yet
 
-- Transaction builders in the SDK.
-- A banking API, reconciler, database or operator dashboard.
-- Deployment to a local validator or Devnet.
+- Production custody and wallet-adapter signing. The console signs with browser-held demo keys.
+- Real bank integration. API keys and webhook secrets are demo values.
+- Program events, approver rotation, withdrawal cancellation, partial repayments and accrual.
+- An external security audit or a mainnet deployment.
+
+## Validation status
+
+As recorded on 12 October 2026, milestones 1–4 of the MVP pass:
+
+- 19 LiteSVM program tests that execute the compiled program.
+- 42 API tests and 20 SDK tests.
+- `bun run e2e`: 26 checks on a loopback validator. Independent treasury, approver, borrower and outsider wallets each sign only their own transactions, and the API and worker never receive a key.
+- The program is deployed on Solana Devnet, and the demo fixtures were seeded there on 12 October 2026.
+
+Commands, observed results and the defects the end-to-end run found are in [`docs/validation.md`](https://github.com/qoppalabs/forge/blob/main/docs/validation.md).
 
 <Cards>
   <Card
     title="Getting started"
     href="/docs/getting-started"
-    description="Build the program and run the test suite."
+    description="Build the program, run the tests and start the local stack."
   />
   <Card
     title="Loan lifecycle"
@@ -38,7 +58,32 @@ FORGE is a developer sandbox for traditional-bank workflows on Solana. Its first
   <Card
     title="Accounts"
     href="/docs/accounts"
-    description="Vault and loan accounts, fields and PDA seeds."
+    description="Vault, loan and withdrawal accounts, fields and PDA seeds."
+  />
+  <Card
+    title="REST API"
+    href="/docs/api"
+    description="Plan operations, submit signatures and follow settlement."
+  />
+  <Card
+    title="Webhooks and statements"
+    href="/docs/webhooks"
+    description="Signed events, postings and reconciliation exceptions."
+  />
+  <Card
+    title="Bank-core integration"
+    href="/docs/bank-core"
+    description="Consume FORGE from a bank's core system without the SDK."
+  />
+  <Card
+    title="Operator console"
+    href="/docs/console"
+    description="Review decoded plans and sign as each demo role."
+  />
+  <Card
+    title="Devnet"
+    href="/docs/devnet"
+    description="Program address, upgrade authority, demo fixtures and deployment record."
   />
   <Card
     title="Limitations"
@@ -46,3 +91,7 @@ FORGE is a developer sandbox for traditional-bank workflows on Solana. Its first
     description="Trust and operational limits of the sandbox."
   />
 </Cards>
+
+## License
+
+FORGE is open source under the [Apache License 2.0](https://github.com/qoppalabs/forge/blob/main/LICENSE): the program, the SDK, the API and worker, the console, the local tooling, the examples and this site.

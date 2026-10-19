@@ -6,7 +6,7 @@ Run every command inside the pinned shell: `nix-shell --run 'bash scripts/devnet
 
 ## Program identity
 
-The program's address is the public key of a program keypair, and `declare_id!` in `programs/forge/src/lib.rs` must equal it, or every instruction fails. The prototype first declared `4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP`, whose secret key was never in the repository. On 11 October 2026 the product owner chose a new id for Devnet:
+The program's address is the public key of a program keypair, and `declare_id!` in `programs/forge/src/lib.rs` must equal it, or every instruction fails. The prototype first declared `4niyjcxN6ySLBVePpUaUHrUEQZvyKDyNYfiQ8N4FUTgP`, whose secret key was never in the repository. On 11 October 2026 a new id was minted for Devnet:
 
 | Role | Public key | Secret key |
 | --- | --- | --- |
@@ -51,7 +51,31 @@ A first deploy of the current 321 KB program needs about 4.5 SOL: the buffer and
 
 The whole flow was rehearsed against a local validator (`FORGE_DEVNET_URL=http://127.0.0.1:8899`) in a scratch worktree on 11 October 2026: new program id, offline rebuild (7 min), deployer, faucet, `check`, first deploy, upgrade, recorded deployment, and `api` serving `network: devnet` with a running worker. The rehearsal found and fixed two problems: `check` read the balance at a weaker commitment than `deploy`, and it asked for first-deploy funding before an upgrade.
 
+## Demo fixtures
+
+The public faucet rate-limits airdrops, so on Devnet the seed does not airdrop to every role. With `FORGE_FIXTURE_WALLETS` set, it keeps the role wallets in that file, checks that the treasury holds at least 0.3 SOL, and pays approver A, approver B and the borrower 0.05 SOL each from it. The first run creates the wallets and stops with the treasury address to fund (https://faucet.solana.com); later runs reuse them.
+
+```sh
+nix-shell --run 'bash scripts/devnet.sh api'         # creates the forge_devnet database; keep it running
+FORGE_RPC_URL=https://api.devnet.solana.com \
+FORGE_DATABASE_URL=postgres://forge@127.0.0.1:54329/forge_devnet \
+FORGE_FIXTURE_WALLETS=.local/devnet/fixture-wallets.json \
+FORGE_DEMO_DIR=.local/devnet \
+  bun apps/localnet/src/seed.ts                      # wallets, mint, institutions → .local/devnet/session.json
+FORGE_DEMO_SESSION=$PWD/.local/devnet/session.json bun run dev:console
+```
+
+`FORGE_DEMO_DIR=.local/devnet bun apps/localnet/src/direct-draw.ts` calls `draw_loan` on the session's newest loan directly, around the API. Before both approvals the program rejects it, and the failed transaction lands where an explorer can show it.
+
+Fixtures seeded on 12 October 2026:
+
+| Fixture | Address |
+| --- | --- |
+| Treasury, also the mint authority | `7JBFmF73kkJc6vrRebntKYCNbjV4UqiKrXkGq1sk7SVQ` |
+| `FORGE_TEST_USD` mint | `EaobAHzbHXAoWdqBbvyQCWxU1PAZZF3SuGmAoYM1Zhv5` |
+
+The mint has six decimals and no freeze authority. Its supply is 10,100 test tokens: 10,000 for the treasury to fund the vault and 100 for the borrower's interest. The treasury keeps mint authority and can issue more. The wallet seeds and API keys stay in the ignored `.local/devnet/`.
+
 ## Not covered yet
 
-- Devnet fixtures: `apps/localnet` seeds wallets and the test mint with local airdrops, which the public Devnet faucet rate-limits. A Devnet demo needs those wallets funded once and the seed pointed at Devnet.
 - The console's local demo signing holds keys in the browser; on a shared Devnet demo, signers should use their own wallets.
