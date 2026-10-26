@@ -145,24 +145,24 @@ export const controls = [
 
 export const status = {
   implemented: [
-    "Anchor program with eight instructions",
-    "Vault creation, funding and withdrawal",
-    "Fixed-payoff loan lifecycle with two approvals",
-    "Compiled-program tests in LiteSVM",
-    "SDK package with IDL, types and program ID",
+    "Anchor program with nine instructions",
+    "Fixed-payoff loans and dual-approver withdrawals",
+    "SDK builders, plan verification and decoders",
+    "Keyless API, reconciling worker and operator console",
+    "End-to-end run on a local validator; program and demo on Devnet",
   ],
   notYet: [
-    "Deployment to a validator or Devnet",
-    "SDK transaction builders",
-    "Banking API, reconciler and statements",
-    "Operator and borrower interfaces",
-    "Partial repayment, accrual and overdue handling",
+    "Production custody and wallet-adapter signing",
+    "Real bank integration",
+    "Partial repayment and accrual",
+    "External security audit",
+    "Mainnet deployment",
   ],
 };
 
 export const faqs = [
   {
-    a: "No. The program is built and tested against its compiled binary in LiteSVM. Local-validator and Devnet deployment are separate steps that have not been taken.",
+    a: "On Solana Devnet only, with test assets. Its upgrade authority can replace the program at any time, so the deployment is not immutable. There is no mainnet deployment.",
     q: "Is FORGE deployed?",
   },
   {
@@ -176,6 +176,10 @@ export const faqs = [
   {
     a: "It is a fixed rate for the whole term, set in basis points at proposal. It is not an annual rate, and the payoff never accrues.",
     q: "What does the interest rate mean?",
+  },
+  {
+    a: "Yes. The whole repository is open source under Apache-2.0: the Anchor program, @forge/sdk, the API and worker, the operator console and the examples.",
+    q: "Is FORGE open source?",
   },
 ];
 
@@ -192,9 +196,12 @@ export const codeSamples = {
 bash scripts/bootstrap.sh
 bash scripts/build.sh
 cargo test --locked -p forge`,
-  ts: `import { FORGE_PROGRAM_ID, forgeIdl, type Forge } from '@forge/sdk';
+  ts: `import { signPlanTransaction, verifyPlan } from '@forge/sdk';
 
-// The SDK ships the IDL, its generated type and the program ID.
-// Transaction builders are planned for a later milestone.
-console.log(FORGE_PROGRAM_ID, forgeIdl.instructions.length);`,
+// Decode the plan's bytes and compare them with its intent before signing.
+const problems = await verifyPlan(plan);
+if (problems.length === 0) {
+  const signed = await signPlanTransaction(plan.transaction, [myKeyPair]);
+  // Send \`signed\` back to the API. The API never receives the key.
+}`,
 };

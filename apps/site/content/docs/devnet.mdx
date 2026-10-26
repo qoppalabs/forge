@@ -1,0 +1,46 @@
+---
+title: Devnet
+description: The FORGE program on Solana Devnet, who controls it, how the deployment was checked, and the demo fixtures.
+---
+
+The FORGE program is deployed on Solana Devnet for demonstration. Devnet uses test SOL and the `FORGE_TEST_USD` fixture mint only. There is no mainnet deployment.
+
+<Callout type="warn" title="The upgrade authority can replace the program">
+  The program uses the upgradeable loader. Its upgrade authority can replace the
+  program at any time, so the deployed program is not immutable.
+</Callout>
+
+## Current deployment
+
+| Fact | Value |
+| --- | --- |
+| Program | `CktNaBZSqpvStJtXVm7Jtjs47L2JqWd66564CV3HLwdx` |
+| Upgrade authority | `FQM2nPX3s8TchNDfhzLD1Gj61AWA8CUKuaVDE5BdXcQq` |
+| Deployed | 11 October 2026, slot `510016536` |
+| Deploy signature | `3zUKNpapz83zForg7EhFoGQzGW2xvYvsy6r5SsPmXCnTLpgfq5segcQL7Vw2VWokAue8ZoZeToh6ipUKwUqhVVBp` |
+| Built from | Commit `9287122` with `bash scripts/build.sh` |
+| Program data | 321,256 bytes, SHA-256 `058cfa0c071a33095740fe74f8c6b1943a1d5ab68115e1984d602de9c2458224` |
+
+`declare_id!` in `programs/forge/src/lib.rs`, the generated IDL and `FORGE_PROGRAM_ID` in `@forge/sdk` carry the same program address.
+
+## How the deployment was checked
+
+- `solana program dump` returned bytes with the same SHA-256 as the local `target/deploy/forge.so`.
+- A simulated `create_vault` with a made-up mint executed the program and failed on `AccountNotInitialized` (3012) for that mint, so the declared id matches the deployed address.
+
+## Demo fixtures
+
+The demo wallets and the test mint were seeded on Devnet on 12 October 2026. Because the public faucet rate-limits airdrops, the seed keeps the role wallets in a local file and pays the approvers and the borrower from a treasury funded by hand.
+
+| Fixture | Address |
+| --- | --- |
+| Treasury, also the mint authority | `7JBFmF73kkJc6vrRebntKYCNbjV4UqiKrXkGq1sk7SVQ` |
+| `FORGE_TEST_USD` mint | `EaobAHzbHXAoWdqBbvyQCWxU1PAZZF3SuGmAoYM1Zhv5` |
+
+The mint has six decimals and no freeze authority. Its supply is 10,100 test tokens: 10,000 for the treasury to fund the vault and 100 for the borrower's interest. The treasury keeps mint authority and can issue more.
+
+## Running against Devnet
+
+`scripts/devnet.sh` deploys the program and runs the API and worker against Devnet. The steps, funding requirements, the fixture seed and the rehearsal record are in [`docs/devnet.md`](https://github.com/qoppalabs/forge/blob/main/docs/devnet.md).
+
+Not covered yet: shared-demo signing. The console's demo signing holds keys in the browser; on a shared Devnet demo, signers should use their own wallets.

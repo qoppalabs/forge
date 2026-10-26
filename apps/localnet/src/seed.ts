@@ -1,6 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
+import { getTransferSolInstruction } from "@solana-program/system";
+import { lamports } from "@solana/kit";
+
 import {
   airdrop,
   createMint,
@@ -8,6 +11,8 @@ import {
   createTokenAccount,
   mintTo,
   newWallet,
+  send,
+  walletFromSeed,
 } from "./lib";
 import type { Wallet } from "./lib";
 
@@ -36,6 +41,44 @@ export interface Session {
 
 export const FUNDING = 10_000_000_000n;
 export const BORROWER_INTEREST_FUNDING = 100_000_000n;
+/** SOL each signing role gets from the treasury when the cluster has no airdrop (Devnet). */
+const ROLE_LAMPORTS = 50_000_000n;
+const TREASURY_MIN_LAMPORTS = 300_000_000n;
+const NAMES = [
+  "treasury",
+  "approverA",
+  "approverB",
+  "borrower",
+  "outsider",
+] as const;
+
+/**
+ * Wallets kept in `walletsPath` when given, so a Devnet treasury can be funded by hand before
+ * the seed runs; otherwise fresh wallets that live only in this run.
+ */
+async function fixtureWallets(walletsPath?: string) {
+  const file = walletsPath ? Bun.file(walletsPath) : undefined;
+  const saved: Record<string, string> =
+    file && (await file.exists()) ? await file.json() : {};
+  const wallets: Record<string, Wallet> = Object.fromEntries(
+    await Promise.all(
+      NAMES.map(async (name) => {
+        const seedHex = saved[name];
+        const wallet = seedHex
+          ? await walletFromSeed(name, seedHex)
+          : await newWallet(name);
+        return [name, wallet] as const;
+      })
+    )
+  );
+  if (walletsPath) {
+    const seeds = Object.fromEntries(
+      Object.entries(wallets).map(([name, w]) => [name, w.seedHex])
+    );
+    await Bun.write(walletsPath, JSON.stringify(seeds, null, 2));
+  }
+  return wallets;
+}
 
 async function createInstitution(
   databaseUrl: string,
@@ -77,25 +120,40 @@ export async function seed(options: {
   apiUrl: string;
   databaseUrl: string;
   webhookUrl?: string;
+  /** Persist wallet seeds here and fund the roles from the treasury instead of airdrops. */
+  walletsPath?: string;
 }): Promise<Session> {
   const rpc = createRpc(options.rpcUrl);
-  const wallets: Record<string, Wallet> = {};
-  for (const name of [
-    "treasury",
-    "approverA",
-    "approverB",
-    "borrower",
-    "outsider",
-  ]) {
-    // oxlint-disable-next-line no-await-in-loop -- fixture wallets are created and funded one at a time
-    const wallet = await newWallet(name);
-    wallets[name] = wallet;
-    // oxlint-disable-next-line no-await-in-loop -- each airdrop is confirmed before the next wallet
-    await airdrop(rpc, wallet.address, 10);
-  }
-  const { treasury, borrower, outsider } = wallets;
-  if (!(treasury && borrower && outsider)) {
+  const wallets = await fixtureWallets(options.walletsPath);
+  const { treasury, approverA, approverB, borrower, outsider } = wallets;
+  if (!(treasury && approverA && approverB && borrower && outsider)) {
     throw new Error("fixture wallets missing");
+  }
+  if (options.walletsPath) {
+    const { value: balance } = await rpc
+      .getBalance(treasury.address, { commitment: "confirmed" })
+      .send();
+    if (balance < TREASURY_MIN_LAMPORTS) {
+      throw new Error(
+        `Fund the treasury ${treasury.address} with at least 0.3 SOL (https://faucet.solana.com), then rerun.`
+      );
+    }
+    await send(
+      rpc,
+      treasury.signer,
+      [approverA, approverB, borrower].map((w) =>
+        getTransferSolInstruction({
+          amount: lamports(ROLE_LAMPORTS),
+          destination: w.address,
+          source: treasury.signer,
+        })
+      )
+    );
+  } else {
+    for (const wallet of Object.values(wallets)) {
+      // oxlint-disable-next-line no-await-in-loop -- each airdrop is confirmed before the next wallet
+      await airdrop(rpc, wallet.address, 10);
+    }
   }
   const mint = await createMint(rpc, treasury.signer, treasury.address, 6);
   const treasurySource = await createTokenAccount(
@@ -159,9 +217,9 @@ export async function seed(options: {
   };
 }
 
-export async function writeSession(session: Session) {
-  await mkdir(DEMO_DIR, { recursive: true });
-  const sessionPath = path.join(DEMO_DIR, "session.json");
+export async function writeSession(session: Session, dir = DEMO_DIR) {
+  await mkdir(dir, { recursive: true });
+  const sessionPath = path.join(dir, "session.json");
   await Bun.write(sessionPath, JSON.stringify(session, null, 2));
   return sessionPath;
 }
@@ -175,8 +233,12 @@ if (import.meta.main) {
       process.env.FORGE_DATABASE_URL ??
       "postgres://forge@127.0.0.1:54329/forge",
     rpcUrl: process.env.FORGE_RPC_URL ?? "http://127.0.0.1:8899",
+    walletsPath: process.env.FORGE_FIXTURE_WALLETS,
   });
-  const sessionPath = await writeSession(session);
+  const sessionPath = await writeSession(
+    session,
+    process.env.FORGE_DEMO_DIR ?? DEMO_DIR
+  );
   console.log(
     `seeded demo wallets, mint ${session.accounts.mint} and institutions → ${sessionPath}`
   );

@@ -1,0 +1,58 @@
+---
+title: Operator console
+description: A browser console that plans each action through the API, shows the decoded bytes and signs locally as each demo role.
+---
+
+The console (`apps/console`) drives the whole lending flow for one vault. It plans every action through the [REST API](/docs/api), decodes the plan in the browser, signs locally as the role you choose, and follows the operation to `finalized`. It does not broadcast anything itself; the worker does.
+
+<Callout type="warn" title="Demo signing only">
+  The console signs with the demo wallets from the seeded session. Its server
+  hands their seeds and the institution's API key to the browser, and its only
+  protection is that it listens on `127.0.0.1`. There is no wallet adapter or
+  custody integration yet. Never point it at real keys.
+</Callout>
+
+## Run it
+
+```sh
+bun run --cwd apps/localnet seed     # demo wallets, mint, institutions → .local/demo/session.json
+bun run dev:api                      # API :3002 and worker
+bun run dev:console                  # http://127.0.0.1:3003
+```
+
+`nix-shell --run 'bash scripts/demo.sh up'` starts the validator, API, worker and console together as `systemd --user` services on a fresh chain.
+
+| Variable             | Default                    |
+| -------------------- | -------------------------- |
+| `FORGE_API_URL`      | `http://127.0.0.1:3002`    |
+| `FORGE_DEMO_SESSION` | `.local/demo/session.json` |
+| `FORGE_CONSOLE_PORT` | `3003`                     |
+
+The console's server is not the API. It serves the UI, proxies `/v1` to the API and serves the demo session at `/dev/session`.
+
+## Sections
+
+| Section | Shows |
+| --- | --- |
+| Overview | Finalized vault cash, principal receivable, pending operations, pause state and sequence, limits, approvers, treasury destination and whether ledger cash matches the chain. |
+| Actions | What the role in **Acting as** can plan. The treasury creates and funds the vault. An approver proposes a loan, proposes a withdrawal, or pauses and resumes draws. |
+| Loans | Terms, `N of 2 approvals`, settlement and due date. An approver can approve; the borrower can draw an approved loan and repay an active or overdue one. |
+| Withdrawals | Amount, approvals and state. The other approver can **Approve & execute**. |
+| Operations | Every operation with its signers and settlement, including direct calls observed on chain. |
+| Statement | Balances, postings and reconciliation exceptions, with **Export CSV**. |
+| Webhook events | The latest events and whether each was delivered. |
+
+The top bar shows the network, the program id, the finalized block height and the worker's heartbeat.
+
+## Review before signing
+
+Every action opens a review drawer. Nothing is signed until you confirm there.
+
+- **What will execute:** amount or principal, fixed interest and payoff, the whole-term rate, term, offer expiry, borrower, destination, approvers, limits or the pause change.
+- **Verification of the bytes you sign:** `verifyPlan` decodes the transaction in the browser and compares it with the intent. A mismatch reads "Do not sign" and disables signing. It also shows the program, fee payer, instructions, operation memo and the last valid block height.
+- **Signatures:** each required signer is listed as signed or awaiting. **Sign as** signs with the current role; **Switch to** changes role. A pause needs both approvers, so each signs the same plan in turn.
+- **Settlement progress:** awaiting signatures, submitted, confirmed, finalized. An expired operation offers **Prepare a new attempt**.
+
+## Statement export
+
+**Export CSV** downloads `statement-<vault>.csv` with the columns `network`, `program_id`, `vault`, `slot`, `entry`, `account`, `debit_base_units`, `credit_base_units`, `business_ref` and `signature`. Amounts are base units. Cells that start with `=`, `+`, `-` or `@` are prefixed with `'` so spreadsheets do not run them as formulas.

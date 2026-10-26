@@ -11,7 +11,7 @@ export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 export const gitConfig = {
   branch: "main",
   repo: "forge",
-  user: "qoppatech",
+  user: "qoppalabs",
 };
 
 export const repoUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}`;

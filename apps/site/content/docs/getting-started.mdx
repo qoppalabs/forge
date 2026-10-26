@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Build the Anchor program and run the compiled-program tests without deploying anything.
+description: Build the Anchor program, run the tests and start the local stack.
 ---
 
 The tested platform is Nix on x86_64 Linux. `flake.lock` pins Anchor 1.2.0, Solana CLI 4.0.3 and the host tools; `shell.nix` uses the same lock.
@@ -66,10 +66,34 @@ It creates in-memory treasury and approver wallets, issues the test supply, crea
 
 ## Workspace
 
-The Bun and Nx workspace builds the program, the SDK and the Go banking service together:
+The Bun and Nx workspace builds and checks the program, the SDK, the API, the console, the local tooling and this site:
 
 ```sh
+nix-shell
 bun install --frozen-lockfile
-bunx nx run-many -t build
-bunx nx run-many -t check-types test
+npx nx run-many -t build
+npx nx run-many -t check-types test
+bun run check
 ```
+
+Use `--parallel=1` on memory-constrained machines. API tests need the local PostgreSQL (`bash scripts/localnet.sh pg-up`).
+
+## Local stack
+
+Everything binds to loopback where the tools allow it and keeps state under the ignored `.local/` directory. The validator loads the built program at genesis.
+
+```sh
+nix-shell --run 'bash scripts/build.sh'           # program + IDL
+nix-shell --run 'bash scripts/localnet.sh up'      # PostgreSQL :54329 + solana-test-validator :8899
+bun run --cwd packages/sdk build
+bun run --cwd apps/localnet seed                   # demo wallets, mint, institutions
+bun run dev:api                                    # API :3002 + worker
+bun run dev:console                                # console http://127.0.0.1:3003
+bun run e2e                                        # scripted end-to-end validation
+nix-shell --run 'bash scripts/localnet.sh down'    # or `reset` to delete all local state
+```
+
+<Callout type="warn">
+  `solana-test-validator` binds RPC, websocket and faucet to all interfaces and
+  has no option to restrict them. Keep a host firewall in place.
+</Callout>

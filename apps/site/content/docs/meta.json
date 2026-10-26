@@ -6,6 +6,11 @@
     "loan-lifecycle",
     "accounts",
     "sdk",
+    "api",
+    "webhooks",
+    "bank-core",
+    "console",
+    "devnet",
     "limitations"
   ]
 }

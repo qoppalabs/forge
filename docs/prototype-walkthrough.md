@@ -1,6 +1,6 @@
 # Prototype walkthrough: decisions and issues
 
-Branch `feat/ts-prototype`. This page maps every architecture-review decision and every open issue to the code that implements it and the evidence that checks it. The detailed evidence is in [validation.md](validation.md).
+Branch `feat/ts-prototype`, merged to `main` as PR #11 on 12 October 2026. This page maps every decision from the architecture review and every open issue to the code that implements it and the evidence that checks it. The detailed evidence is in [validation.md](validation.md).
 
 ## Decisions
 
@@ -30,7 +30,7 @@ Branch `feat/ts-prototype`. This page maps every architecture-review decision an
 - **Evidence:**
   - vault created and funded with exactly 10,000,000,000 base units;
   - unauthorized direct SPL withdrawal rejected for both outsider and treasury, with balances unchanged.
-- No Devnet or mainnet deployment.
+- No Devnet or mainnet deployment at the time. The Devnet deployment followed on 11 October 2026 ([devnet.md](devnet.md)).
 
 ### #3 — SDK builders and typed reads
 
@@ -97,4 +97,4 @@ bun run dev:console                           # http://127.0.0.1:3003
   - a separate rent payer;
   - approver rotation;
   - withdrawal cancellation.
-- **Infrastructure:** history-retaining RPC providers and multiple-RPC failover; Kafka or Geyser only when triggered (see the review's phase 4).
+- **Infrastructure:** history-retaining RPC providers and multiple-RPC failover; Kafka or Geyser only when a measured need justifies them.

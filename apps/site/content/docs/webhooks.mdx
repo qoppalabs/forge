@@ -1,0 +1,78 @@
+---
+title: Webhooks and statements
+description: Signed at-least-once events and the balanced statement the worker builds from finalized transactions.
+---
+
+The worker reads every finalized transaction that touches an institution's vaults. That includes API operations, direct program calls, transactions a wallet broadcast itself, and plain token transfers. In one database transaction it records the chain event, the balanced postings, any reconciliation exception and the webhook event. Nothing is posted or announced before `finalized`.
+
+## Webhooks
+
+The worker sends each event as a `POST` to the institution's webhook URL:
+
+```http
+POST /hook
+content-type: application/json
+forge-event-id: localnet:5Hk…:2:-1
+forge-signature: t=1760300000,v1=3f9c…
+
+{"id":"localnet:5Hk…:2:-1","type":"loan.drawn","createdAt":"…","data":{…}}
+```
+
+### Verify the signature
+
+`v1` is the lowercase hex HMAC-SHA256 of `"<t>.<raw body>"`, keyed with the institution's `whsec_…` secret. Verify it over the raw request body before parsing it, compare in constant time, and reject timestamps too far from your clock. The [bank-core example](/docs/bank-core) allows 300 seconds either way.
+
+### Deliver at least once
+
+- Any `2xx` response counts as delivered. Anything else is retried, including a redirect, a network error or a timeout after 5 seconds.
+- Retries back off exponentially from 2 seconds up to one hour. There is no attempt ceiling yet.
+- An event keeps its `id` across retries. Apply each id once.
+- A failed event is retried while later events go out, so do not rely on delivery order.
+- `GET /v1/events?after=<id>` returns the same events for polling, with their delivery state.
+
+### Event types
+
+| Type | When |
+| --- | --- |
+| `vault.created`, `vault.funded`, `vault.pause_set` | `create_vault`, `fund_vault` or `set_disbursement_paused` finalized. |
+| `loan.proposed`, `loan.approved`, `loan.drawn`, `loan.repaid` | The matching loan instruction finalized. |
+| `withdrawal.proposed`, `withdrawal.executed` | `propose_withdrawal`, or the `approve_withdrawal` that moved the funds, finalized. |
+| `operation.failed`, `operation.already_applied`, `operation.needs_review` | An open API operation landed with an error. |
+| `operation.expired` | An operation's blockhash expired before it landed. |
+| `exception.created` | A reconciliation exception was recorded. |
+
+Instruction events carry `vault`, `subject`, `operationId`, `businessRef`, `intent`, `signature`, `slot`, `blockTime` and `network`. Their id is `<network>:<signature>:<instruction>:<inner instruction>`, so a replayed transaction cannot produce a second event. Operation events carry `operationId`, `kind`, `subject`, `vault` and, for failures, `reason`, `error`, `signature` and `slot`. Exception events carry `exceptionId`, `kind`, `vault`, `signature` and `amount` or `error`.
+
+## Statement
+
+`GET /v1/vaults/:vault/statement` returns the vault's ledger:
+
+| Field | Meaning |
+| --- | --- |
+| `postings` | Every posting, ordered by slot. Each carries `entry`, `account`, `debit`, `credit`, `business_ref`, `signature` and `slot`. |
+| `balances` | Debit, credit and balance per account. |
+| `balanced` | Total debits equal total credits. |
+| `exceptions` | Reconciliation exceptions. |
+| `reconciliation` | `ledgerCash`, the ledger's vault cash; `chainCash`, the finalized vault token balance; `matches`; and `syncedSlot`. |
+
+### Postings
+
+| Entry | Debit | Credit |
+| --- | --- | --- |
+| `fund` | `vault_cash` | `treasury_cash` |
+| `disburse` | `principal_receivable` | `vault_cash` |
+| `repay` | `vault_cash` (fixed payoff) | `principal_receivable` (principal) and `interest_income` (fixed interest) |
+| `withdraw` | `treasury_cash` | `vault_cash` |
+| `unallocated_receipt` | `vault_cash` | `unallocated_receipts` |
+
+Vault creation, proposals, loan approvals and pause changes post nothing. These postings show reconciliation with a simplified cash-basis treatment. They are not a bank's accounting policy.
+
+### Exceptions
+
+| Kind | Cause |
+| --- | --- |
+| `unexpected_deposit` | Tokens reached the vault outside any FORGE instruction, for example a direct transfer. The amount is posted to `unallocated_receipts`, never to a loan. |
+| `unexplained_outflow` | The vault balance fell by more than the instructions explain. Nothing is posted, so `matches` stays `false`. |
+| `unprocessable_transaction` | The worker failed three passes on a transaction. It records the exception and moves past it, so the vault keeps syncing. |
+
+The operator console exports the statement as CSV. See [Operator console](/docs/console).

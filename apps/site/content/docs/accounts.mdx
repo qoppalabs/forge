@@ -1,9 +1,9 @@
 ---
 title: Accounts
-description: Vault and loan accounts, their fields, and how their addresses are derived.
+description: Vault, loan and withdrawal accounts, their fields, and how their addresses are derived.
 ---
 
-Amounts are stored in the mint's base units. The test mint uses six decimals, so `10_000_000_000` base units is 10,000 `FORGE_TEST_USD`.
+Amounts are stored in the mint's base units. The test mint uses six decimals, so `10_000_000_000` base units is 10,000 `FORGE_TEST_USD`. Timestamps are Unix seconds.
 
 ## Addresses
 
@@ -21,51 +21,73 @@ Amounts are stored in the mint's base units. The test mint uses six decimals, so
 | Field | Type | Description |
 | --- | --- | --- |
 | `treasury` | `Pubkey` | Treasury authority that owns the vault namespace and funds it. |
+| `vault_id` | `[u8; 32]` | Treasury-chosen identifier in the vault PDA seeds. |
 | `mint` | `Pubkey` | The only SPL Token mint the vault accepts. Fixed at creation. |
+| `token_account` | `Pubkey` | The vault token account that holds vault cash. |
 | `approvers` | `[Pubkey; 2]` | Two distinct, non-default approvers. Immutable. |
 | `treasury_destination` | `Pubkey` | Treasury token account that receives withdrawals. |
 | `per_loan_limit` | `u64` | Maximum principal for a single loan. |
 | `outstanding_limit` | `u64` | Maximum principal drawn and not yet repaid, across all loans. |
 | `outstanding_principal` | `u64` | Principal currently drawn and not yet repaid. |
 | `disbursement_paused` | `bool` | Blocks new draws while repayments continue. |
-| `pause_seq` | `u64` | Count of applied pause changes; requests must quote it. |
+| `pause_seq` | `u64` | Count of applied pause changes, starting at `0`; requests must quote it. |
+| `bump` | `u8` | PDA bump. |
 
 ## Loan
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `vault` | `Pubkey` | Vault that funds the loan and defines its limits, mint and approvers. |
+| `loan_id` | `[u8; 32]` | Vault-scoped identifier in the loan PDA seeds. |
 | `borrower` | `Pubkey` | The only signer allowed to draw and repay. |
 | `destination` | `Pubkey` | Borrower-owned token account that receives principal. |
 | `principal` | `u64` | Loan principal. |
 | `term_rate_bps` | `u16` | Fixed rate for the whole term, in basis points. |
+| `fixed_interest` | `u64` | `principal × term_rate_bps ÷ 10,000`, rounded down, computed at proposal. |
 | `fixed_payoff` | `u64` | Principal plus fixed interest, computed at proposal. |
-| `offer_expiry` | `i64` | Unix timestamp after which an approved offer cannot be drawn. |
+| `term_seconds` | `i64` | Contractual term length. |
+| `offer_expiry` | `i64` | Timestamp after which an approved offer cannot be drawn. |
 | `approvals` | `[bool; 2]` | Approval flags aligned with the vault approvers. |
-| `state` | `LoanState` | Proposed, Approved, Active or Repaid. |
+| `state` | `LoanState` | `Proposed`, `Approved`, `Active` or `Repaid`. |
+| `proposed_at` | `i64` | When the loan was proposed. |
+| `disbursed_at` | `i64` | When principal was drawn; `0` until then. |
+| `repaid_at` | `i64` | When the payoff was repaid; `0` until then. |
+| `bump` | `u8` | PDA bump. |
 
 ## Withdrawal
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `vault` | `Pubkey` | Vault whose cash is withdrawn to its treasury destination. |
+| `withdrawal_id` | `[u8; 32]` | Vault-scoped identifier in the withdrawal PDA seeds; a replay fails instead of moving funds again. |
 | `amount` | `u64` | Amount sent to the treasury destination on execution. |
 | `approvals` | `[bool; 2]` | Approval flags aligned with the vault approvers; the proposer's is set at proposal. |
-| `state` | `WithdrawalState` | Proposed or Executed. |
+| `state` | `WithdrawalState` | `Proposed` or `Executed`. |
+| `proposed_at` | `i64` | When the withdrawal was proposed. |
+| `executed_at` | `i64` | When funds moved; `0` until then. |
+| `bump` | `u8` | PDA bump. |
 
 ## Errors
 
-| Error | Meaning |
-| --- | --- |
-| `InvalidApprovers` | Approvers must be distinct, non-default public keys. |
-| `InvalidLimits` | Limits must be positive and the per-loan limit cannot exceed the outstanding limit. |
-| `InvalidMintDecimals` | `FORGE_TEST_USD` requires six decimals. |
-| `UnauthorizedApprover` | The signer is not a configured approver. |
-| `AlreadyApproved` | This approver has already approved the loan. |
-| `PerLoanLimitExceeded` | Principal exceeds the per-loan limit. |
-| `OutstandingLimitExceeded` | The draw would exceed the outstanding principal limit. |
-| `InsufficientLiquidity` | The vault does not hold enough cash for the draw. |
-| `DisbursementPaused` | New draws are paused. |
-| `LoanExpired` | The approved offer has expired. |
-| `InvalidLoanState` | The loan is in the wrong state for this instruction. |
-| `InvalidBorrower` / `InvalidDestination` | The signer or destination does not match the loan's borrower. |
-| `InvalidWithdrawalState` | The withdrawal was already executed. |
-| `StalePauseSequence` | The pause request quoted an outdated `pause_seq`. |
+| Code | Error | Meaning |
+| --- | --- | --- |
+| 6000 | `InvalidApprovers` | Approvers must be distinct, non-default public keys. |
+| 6001 | `InvalidLimits` | Limits must be positive and the per-loan limit cannot exceed the outstanding limit. |
+| 6002 | `InvalidMintDecimals` | `FORGE_TEST_USD` requires six decimals. |
+| 6003 | `InvalidAmount` | Funding, principal and withdrawal amounts must be positive. |
+| 6004 | `UnauthorizedApprover` | The signer is not a configured approver. |
+| 6005 | `InvalidTerm` | The loan term must be positive. |
+| 6006 | `InvalidExpiry` | The offer expiry must be in the future. |
+| 6007 | `PerLoanLimitExceeded` | Principal exceeds the per-loan limit. |
+| 6008 | `MathOverflow` | Checked arithmetic overflowed. |
+| 6009 | `MathUnderflow` | Checked arithmetic underflowed. |
+| 6010 | `InvalidLoanState` | The loan is in the wrong state for this instruction. |
+| 6011 | `AlreadyApproved` | This approver has already approved the loan or withdrawal. |
+| 6012 | `DisbursementPaused` | New draws are paused. |
+| 6013 | `LoanExpired` | The approved offer has expired. |
+| 6014 | `OutstandingLimitExceeded` | The draw would exceed the outstanding principal limit. |
+| 6015 | `InsufficientLiquidity` | The vault does not hold enough cash for the draw or withdrawal. |
+| 6016 | `InvalidBorrower` | The signer does not match the loan's borrower. |
+| 6017 | `InvalidDestination` | The destination does not belong to the borrower. |
+| 6018 | `InvalidWithdrawalState` | The withdrawal was already executed. |
+| 6019 | `StalePauseSequence` | The pause request quoted an outdated `pause_seq`. |

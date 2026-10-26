@@ -104,9 +104,9 @@ export function Status() {
         <div className="lg:col-span-5">
           <SectionTitle>A sandbox, described plainly.</SectionTitle>
           <p className="text-muted-foreground mt-4 max-w-md">
-            FORGE is a local prototype. It is not an audited protocol, a
-            deployed program or a custody system. Here is exactly where it
-            stands.
+            FORGE is a prototype. It is not a banking service, an audited
+            protocol or a custody system, and it runs on Devnet with test assets
+            only. Here is exactly where it stands.
           </p>
         </div>
         <div className="grid gap-8 sm:grid-cols-2 lg:col-span-7">
@@ -148,8 +148,8 @@ export function FinalCta() {
           Read the rules before you trust them.
         </h2>
         <p className="text-muted-foreground mt-6 max-w-xl text-lg">
-          The documentation covers the lifecycle, the accounts, every error and
-          every limit of the sandbox.
+          The documentation covers the lifecycle, the accounts, the API and its
+          webhooks, every error and every limit of the sandbox.
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link href="/docs" className={buttonVariants({ size: "lg" })}>

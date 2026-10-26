@@ -6,7 +6,7 @@ Prepared: 16 September 2026. Status: proposed implementation specification; no a
 
 FORGE helps traditional banks integrate onchain financial operations with their existing systems. The first deliverable is a developer sandbox for a bank-controlled vault and a bilateral business loan on Solana.
 
-The user has selected traditional banks as the primary customer, Solana as the first network, and proprietary source code initially. Hyperliquid and investment-market products belong to a later phase. The technical and product choices below are proposed defaults for the hackathon.
+The initial decisions: traditional banks as the primary customer and Solana as the first network. Hyperliquid and investment-market products belong to a later phase. The technical and product choices below are proposed defaults for the hackathon.
 
 The first validation question: can a bank engineer integrate one controlled lending workflow, understand its permissions, and reconcile its results using FORGE's SDK and API?
 
@@ -157,7 +157,7 @@ Treat the dates as a proposed allocation up to the 12 October submission deadlin
 | 5. External evaluation | 6–8 Oct | A bank engineer or relevant technical evaluator attempts integration; findings are recorded accurately. |
 | 6. Submission | 9–12 Oct | Fix remaining flow failures, record demonstration and prepare a clear business pitch. |
 
-Today's first implementation ticket: initialize the private Anchor workspace; record toolchain versions; implement create_vault and fund_vault with an explicit mint and PDA authority; seed two approvers and a treasury wallet; verify funded balance and rejection of an unauthorized transfer. That executable boundary is the foundation for the lending flow.
+First implementation ticket: initialize the Anchor workspace; record toolchain versions; implement create_vault and fund_vault with an explicit mint and PDA authority; seed two approvers and a treasury wallet; verify funded balance and rejection of an unauthorized transfer. That executable boundary is the foundation for the lending flow.
 
 Useful initial commands after installing the documented toolchain: anchor init forge, anchor build, and anchor test. Follow the current [local development guide](https://www.anchor-lang.com/docs/quickstart/local); pin the successful toolchain rather than assuming an unverified version.
 
@@ -182,9 +182,9 @@ The first useful evidence is one technical evaluator completing the integration 
 
 After the complete demonstration, prioritize borrower/issuer attestations, partial repayments and accrual policies, tokenized instruments with appropriate transfer rules, and production custody integration according to bank feedback. Hyperliquid belongs to the subsequent markets module. Keep common institution identity, approvals and statements reusable without building a universal chain abstraction in v0.1.
 
-## 10. Handoff to Pi or another coding agent
+## 10. First implementation brief
 
-Implement milestone 1 of this specification in a private repository. First read any repository instructions and check the current Anchor toolchain. Use one program, one configured six-decimal test mint, a PDA-authorized vault, immutable bank approver keys, and independent local test wallets. Keep bank and borrower signing keys out of the API. Provide a reproducible local fixture and meaningful direct-program authorization tests. Report exactly which commands pass and whether any transaction was deployed beyond the local validator. Continue to the loan lifecycle only after vault accounting and authority checks pass. Use this document as the product specification and preserve the stated Solana-first traditional-bank scope.
+Implement milestone 1 of this specification first, after checking the current Anchor toolchain. Use one program, one configured six-decimal test mint, a PDA-authorized vault, immutable bank approver keys, and independent local test wallets. Keep bank and borrower signing keys out of the API. Provide a reproducible local fixture and meaningful direct-program authorization tests. Report exactly which commands pass and whether any transaction was deployed beyond the local validator. Continue to the loan lifecycle only after vault accounting and authority checks pass. Use this document as the product specification and preserve the stated Solana-first traditional-bank scope.
 
 ## Primary references
 

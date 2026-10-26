@@ -155,7 +155,7 @@ At 1024px collapse the navigation rail. At 768px stack metric groups and place m
 
 Use material and architectural references sparingly in marketing: crisp metal profiles, aligned channels, fitted parts and diagrammatic structure. The core identity itself stays flat. Functional diagrams must be drawn from actual system behavior and remain legible. Sample dashboards should be labeled as samples. Avoid speculative yield imagery, coins, mascots and atmospheric effects in operational screens.
 
-## Implementation guide for a coding agent
+## Implementation guide
 
 Read this document before building FORGE screens. Use forge-tokens.css as the token source. Default to the light theme and support an explicit dark-theme preference. Implement the first bank-controlled lending sandbox with legible amounts, separate approval and settlement states, 4px geometry and persistent labels. Use the confirmed MVP specification for behavior and this document for presentation. Keep all displayed balances traceable to application state. Treat the reference preview as a visual specimen, not a working financial application. Preserve the traditional-bank and Solana-first positioning.
 

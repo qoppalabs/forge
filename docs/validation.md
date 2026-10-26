@@ -3,12 +3,12 @@
 ## Current status — 12 October 2026
 
 - Milestones 1–4 of the MVP pass: 19 LiteSVM program tests, 42 API tests, 20 SDK tests and the 26-check `bun run e2e` flow on a local validator.
-- The program is deployed on Solana Devnet ([devnet.md](devnet.md)).
+- The program is deployed on Solana Devnet, and the demo fixtures were seeded there on 12 October 2026 ([devnet.md](devnet.md)).
 - The sections below are dated records, oldest first. Each describes the state at the time it was written.
 
 ## Milestone 1 status — 16 September 2026
 
-Compiled-program creation, funding and authorization checks pass in LiteSVM. **Milestone 1's local-validator exit criterion remains unpassed and deployment remains unapproved.** No local or remote deployment, validator reset, push or commit has been performed in this writer pass. Independent security review found no local-sandbox blocker; accepted reproducibility and disclosure findings are addressed below.
+Compiled-program creation, funding and authorization checks pass in LiteSVM. **Milestone 1's local-validator exit criterion was not yet passed, and nothing had been deployed.** No local or remote deployment or validator reset was performed at this stage. Independent security review found no local-sandbox blocker; accepted reproducibility and disclosure findings are addressed below.
 
 ## Observed versions
 
@@ -40,8 +40,8 @@ Commands below run from the repository root. Build and test commands use `nix-sh
 | `cargo fmt --all -- --check` | Passed. |
 | `cargo clippy --locked -p forge --all-targets -- -D warnings` | Passed after a test-only lint allowance retaining LiteSVM's public large-error result type and full failure logs. |
 | `git diff --check` and `git diff --cached --check` | Passed; nothing staged (new files are untracked). |
-| Per-file `git diff --no-index --check /dev/null <file>` | Authored source/config/docs clean. Supplied `docs/brand/REFERENCE-LICENSE.txt:22` reports one existing blank line at EOF; retained to preserve byte-identical source. |
-| Byte comparison against supplied spec/brand directory | All 7 brand files and product specification unchanged. |
+| Per-file `git diff --no-index --check /dev/null <file>` | Authored source/config/docs clean. The vendored `docs/brand/REFERENCE-LICENSE.txt:22` reports one existing blank line at EOF; retained to keep it byte-identical to its source. |
+| Byte comparison against the original spec and brand files | All 7 brand files and product specification unchanged. |
 | `bash scripts/bootstrap.sh` | Passed against installed project-local builder 4.3.0; no host installation overwritten. |
 | `bash -n scripts/build.sh scripts/bootstrap.sh` | Passed. |
 
@@ -49,7 +49,7 @@ Anchor 1.2.0's `init` token-account macro unconditionally emits `anchor_spl::tok
 
 ### Negative-control evidence
 
-Original preimplementation red output was not retained across the previous writer timeout; no original TDD success is claimed. A fresh mutation check temporarily removed the zero-funding guard, rebuilt the actual SBF, and ran:
+The original pre-implementation failing output was not kept; no original TDD success is claimed. A fresh mutation check temporarily removed the zero-funding guard, rebuilt the actual SBF, and ran:
 
 ```sh
 nix-shell --run 'bash scripts/build.sh && cargo test --locked -p forge --test vault funding_rejects_wrong_mint_source_owner_and_amounts'
@@ -66,15 +66,15 @@ This pass reused installed project-local build tools and dependency caches; a cl
 
 The Anchor program now includes persistent `Loan` accounts and the complete local prototype flow: `propose_loan`, `approve_loan`, `draw_loan`, `repay_loan`, `withdraw_available` and `set_disbursement_paused`. Terms are fixed at proposal, two distinct configured approvers are required, draw and repayment update vault accounting atomically with legacy SPL Token transfers, and withdrawal is limited to actual vault cash.
 
-The existing vault regression suite remains green, and `loan_lifecycle_requires_approvals_and_closes_once` exercises the compiled SBF through proposal, both approvals, draw, repayment, pause and dual-approver withdrawal in LiteSVM. This is implementation evidence only; the local-validator deployment gate remains unpassed and no deployment is claimed.
+The existing vault regression suite remains green, and `loan_lifecycle_requires_approvals_and_closes_once` exercises the compiled SBF through proposal, both approvals, draw, repayment, pause and dual-approver withdrawal in LiteSVM. This is implementation evidence only; the local-validator gate was not yet passed and no deployment is claimed.
 
 ### LSP limitation
 
-Proactive Rust LSP diagnostics emitted false primitive/slice errors such as `cannot apply unary operator ! to type bool`. Host Rust source was absent during diagnosis; cached findings persisted even after the parent's attempted session deferral. Pinned-shell Cargo compilation, all-target checking and actual runtime tests passed instead; Rust LSP cleanliness is **not** claimed and correct code was not rewritten or suppressed to silence those errors.
+Rust LSP diagnostics emitted false primitive/slice errors such as `cannot apply unary operator ! to type bool`. Host Rust source was absent during diagnosis, and the cached findings persisted. Pinned-shell Cargo compilation, all-target checking and actual runtime tests passed instead; Rust LSP cleanliness is **not** claimed and correct code was not rewritten or suppressed to silence those errors.
 
 ## Independent review and accepted corrections
 
-The parent independently reran the full build/runtime/check/format/Clippy sequence and the public-only fixture. All 10 runtime tests passed, fixture balances matched, and SBF/IDL hashes matched the values above. A fresh security reviewer found no blocker for this local-only sandbox.
+An independent rerun repeated the full build/runtime/check/format/Clippy sequence and the public-only fixture. All 10 runtime tests passed, fixture balances matched, and SBF/IDL hashes matched the values above. A fresh security reviewer found no blocker for this local-only sandbox.
 
 Two accepted findings were addressed without program changes:
 
@@ -89,7 +89,7 @@ bash scripts/check-nix-path.sh
 
 Before the fix it failed with `file 'nixpkgs' was not found in the Nix search path` when inherited `NIX_PATH` was unset. After the fix, nested `nix-instantiate --find-file nixpkgs` matched the source resolved from `flake.lock` for both unset and deliberately bogus inherited `NIX_PATH`. The test selects its Bash executable explicitly so nix-shell's startup Bash lookup is separate from the nested lookup being checked.
 
-Fresh writer rerun after the environment change (exit 0):
+Fresh rerun after the environment change (exit 0):
 
 ```sh
 nix-shell --run 'bash scripts/bootstrap.sh && bash scripts/build.sh && cargo test --locked -p forge && cargo check --locked -p forge --all-targets && cargo fmt --all -- --check && cargo clippy --locked -p forge --all-targets -- -D warnings'
@@ -99,7 +99,7 @@ sha256sum target/deploy/forge.so target/idl/forge.json
 
 SBF/IDL generation passed, all 10 runtime tests passed, compiler/format/Clippy checks passed, shell syntax passed, and both artifact hashes remained unchanged. Proactive diagnostics for the changed Nix file and new shell check reported no errors; the separate Rust LSP limitation remains as described above.
 
-**Residual supply-chain trust:** the upstream builder selects platform-tools release v1.57, but this repository does not pin the compiler archive's SHA-256 or use a fixed-output Nix downloader for that archive. That optional hardening is deferred, not implemented or claimed. The build reused existing tool and dependency caches; the new check proves nested lookup selection, not a full cold download/repatch or clean-machine bootstrap. Local-validator deployment and its acceptance gate remain unapproved/unpassed.
+**Residual supply-chain trust:** the upstream builder selects platform-tools release v1.57, but this repository does not pin the compiler archive's SHA-256 or use a fixed-output Nix downloader for that archive. That optional hardening is deferred, not implemented or claimed. The build reused existing tool and dependency caches; the new check proves nested lookup selection, not a full cold download/repatch or clean-machine bootstrap. Local-validator deployment and its acceptance gate were still pending at this point.
 
 ## JavaScript dependency evaluation (candidate rejected)
 
@@ -109,7 +109,7 @@ An optional TypeScript seed client was investigated using Node 24.20.0 / npm 11.
 - `@solana/spl-token@0.4.15 → @solana/buffer-layout-utils@0.3.0 → bigint-buffer@1.1.5`: [native buffer overflow](https://github.com/advisories/GHSA-3gc7-fjrx-p6mg).
 - `@solana/web3.js@1.99.0 → jayson@4.3.0 → stream-json@1.9.1 / uuid@8.3.2`: [nested-input DoS](https://github.com/advisories/GHSA-528h-pc64-c93x), [buffer bounds](https://github.com/advisories/GHSA-w5hq-g745-h8pq).
 
-No blanket override, forced downgrade, audit suppression or risk waiver was applied. The supervisor approved a smaller milestone: retain the existing Rust/LiteSVM fixture and defer the network seed client until deployment approval. Candidate package manifests, npm lockfile, TypeScript configuration and draft seed test were removed; **no JavaScript application/client dependencies are retained**. Ignored `node_modules/` remains an unused local investigation artifact, not a shipped dependency. Node was removed from the development shell. TypeScript typecheck/client tests were not completed and are not claimed as evidence; SDK/API work remains milestone 3. Generated IDL/TS types remain build outputs only.
+No blanket override, forced downgrade, audit suppression or risk waiver was applied. The milestone was narrowed instead: keep the existing Rust/LiteSVM fixture and defer the network seed client until deployment. Candidate package manifests, npm lockfile, TypeScript configuration and draft seed test were removed; **no JavaScript application/client dependencies are retained**. Ignored `node_modules/` remains an unused local investigation artifact, not a shipped dependency. Node was removed from the development shell. TypeScript typecheck/client tests were not completed and are not claimed as evidence; SDK/API work remains milestone 3. Generated IDL/TS types remain build outputs only.
 
 ## Milestones 3–6: SDK, keyless API, reconciler and end-to-end flow — 5 October 2026
 
@@ -170,4 +170,4 @@ The independent treasury, approver A, approver B, borrower and outsider wallets 
 - `solana-test-validator` binds RPC (8899), websocket (8900) and faucet (9900) to `0.0.0.0` and has no flag to restrict them. The tested NixOS host firewall blocks inbound connections.
 - Expiry proofs and indexer cursors need an RPC node that retains history beyond worker downtime. Absence of a signature on a pruned node proves nothing; production needs history-retaining RPC providers.
 - The console signs with browser-held demonstration keys served from `.local/demo/session.json` by the console's development server. There is no wallet adapter or custody integration.
-- Devnet and mainnet deployment remain unapproved.
+- No Devnet or mainnet deployment at this date. The Devnet deployment followed on 11 October 2026 ([devnet.md](devnet.md)); mainnet is out of scope.

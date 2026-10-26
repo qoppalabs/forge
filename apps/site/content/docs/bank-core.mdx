@@ -1,0 +1,67 @@
+---
+title: Bank-core integration
+description: The bank-core example consumes FORGE over plain HTTP, without the SDK.
+---
+
+`examples/bank-core/receiver.ts` is what a bank's core system needs to consume FORGE. It does not use the SDK or any Solana library, so the same steps work from Go, Java or any other language. For each webhook it:
+
+1. Verifies `forge-signature` over the raw body. It answers `401` if the signature fails or the timestamp is more than 300 seconds from its clock.
+2. Acknowledges an event id it has already applied with `200`, without applying it again.
+3. Fetches the vault statement over REST and logs whether it is balanced and matches the chain.
+4. Records the event id, then answers `200`.
+
+If the statement fetch fails, it answers `502` without recording the event, so FORGE delivers it again. Applied events are appended to `.local/bank-core/applied-events.jsonl`, so deduplication survives restarts.
+
+## Run it
+
+<Steps>
+<Step>
+
+### Create an institution with a webhook URL
+
+The seeded `Demo Bank` has no webhook URL, so create a separate institution for the receiver. The key and secret are printed once.
+
+```sh
+bun apps/api/src/cli.ts create-institution --name "Core Bank" --webhook-url http://127.0.0.1:4010/hook
+```
+
+</Step>
+<Step>
+
+### Start the receiver
+
+```sh
+FORGE_API_KEY=fk_… FORGE_WEBHOOK_SECRET=whsec_… bun examples/bank-core/receiver.ts
+# bank-core receiver on http://127.0.0.1:4010/
+```
+
+| Variable           | Default                                 |
+| ------------------ | --------------------------------------- |
+| `FORGE_API_URL`    | `http://127.0.0.1:3002`                 |
+| `PORT`             | `4010`, on `127.0.0.1`                  |
+| `BANK_CORE_LEDGER` | `.local/bank-core/applied-events.jsonl` |
+
+</Step>
+<Step>
+
+### Generate events
+
+Events belong to the institution that owns the vault. Plan operations with the new key through the [REST API](/docs/api), sign them with your own wallets, and the worker delivers an event for each finalized instruction:
+
+```text
+vault.funded 7xKX…: 2 postings, balanced=true, matches chain=true
+```
+
+</Step>
+</Steps>
+
+## What a bank adapter adds
+
+The example only logs the reconciliation result. A real adapter would also:
+
+- map `businessRef` to its own loan and withdrawal records;
+- post the statement entries to its general ledger;
+- open a case for every `exception.created`, because unexplained token movements are never applied to a loan;
+- alert on `operation.failed` and `operation.needs_review`.
+
+`apps/api/test/bank-core.test.ts` runs this receiver against the real worker: signed deliveries are accepted, a redelivery is applied once, and each event reconciles the statement.
